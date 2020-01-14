@@ -1,16 +1,18 @@
 import { Module } from '@nestjs/common';
-import { ManufacturerModule } from '../manufacturer/manufacturer.module';
-import { CarController } from './car.controller';
-import { CarRepositoryToken } from './car.repository';
-import { InMemoryCarRepository } from './car.repository.imemory';
-import { CarService } from './car.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Car } from './car.entity';
+import { CarsController } from './cars.controller';
+import { CarsExceptionFilter } from './cars.exception-filter';
+import { CarsService } from './cars.service';
+import { Owner } from './owner.entity';
 
 @Module({
-  imports: [ManufacturerModule],
-  controllers: [CarController],
+  imports: [TypeOrmModule.forFeature([Owner, Car])],
   providers: [
-    { provide: CarRepositoryToken, useClass: InMemoryCarRepository },
-    CarService
-  ]
+    CarsService,
+    CarsExceptionFilter
+  ],
+  controllers: [CarsController],
+  exports: [CarsService]
 })
-export class CarModule {}
+export class CarModule { }

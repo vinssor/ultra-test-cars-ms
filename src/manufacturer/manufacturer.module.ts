@@ -1,24 +1,13 @@
 import { Module } from '@nestjs/common';
-import {
-  ManufacturerRepository,
-  ManufacturerRepositoryToken
-} from './manufacturer.repository';
-import { InMemoryManufacturerRepository } from './manufacturer.repository.inmemory';
-import { ManufacturerService } from './manufacturer.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Manufacturer } from './manufacturer.entity';
+import { ManufacturersController } from './manufacturers.controller';
+import { ManufacturersService } from './manufacturers.service';
 
 @Module({
-  imports: [ManufacturerModule],
-  providers: [
-    {
-      provide: ManufacturerRepositoryToken,
-      useValue: new InMemoryManufacturerRepository([
-        { id: '1', payload: { name: 'Volkswagen' } },
-        { id: '2', payload: { name: 'Toyota' } },
-        { id: '3', payload: { name: 'Renault' } }
-      ])
-    },
-    ManufacturerService
-  ],
-  exports: [ManufacturerService]
+  imports: [TypeOrmModule.forFeature([Manufacturer])],
+  providers: [ManufacturersService],
+  controllers: [ManufacturersController],
+  exports: [ManufacturersService]
 })
 export class ManufacturerModule {}
