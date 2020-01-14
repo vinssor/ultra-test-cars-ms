@@ -1,13 +1,7 @@
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import { IsDateString, IsDefined, IsOptional, IsString } from 'class-validator';
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn
-} from 'typeorm';
+import { IsDateString, IsDefined, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Column, Entity, Generated, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
 import { Car } from './car.entity';
 
 const { CREATE, UPDATE } = CrudValidationGroups;
@@ -17,8 +11,10 @@ export class Owner {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @MaxLength(36)
+  @PrimaryColumn()
+  @Generated('uuid')
+  id: number;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })
@@ -41,6 +37,6 @@ export class Owner {
       nullable: false
     }
   )
-  @JoinColumn({ name: 'carId' })
+  @JoinColumn()
   car: Car;
 }

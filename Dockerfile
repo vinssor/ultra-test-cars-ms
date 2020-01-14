@@ -1,4 +1,4 @@
-FROM node
+FROM node:lts
 
 RUN mkdir -p /opt/cars-ms
 WORKDIR /opt/cars-ms

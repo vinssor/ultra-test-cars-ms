@@ -17,7 +17,7 @@ import { Owner } from './owner.entity';
   params: {
     id: {
       field: 'id',
-      type: 'uuid',
+      type: 'string',
       primary: true
     }
   },
@@ -35,7 +35,7 @@ import { Owner } from './owner.entity';
 @UseFilters(CarsExceptionFilter)
 @Controller('cars')
 export class CarsController {
-  constructor(public service: CarsService) {}
+  constructor(public service: CarsService) { }
 
   @ApiResponse({ type: Manufacturer })
   @UseInterceptors(CrudRequestInterceptor)

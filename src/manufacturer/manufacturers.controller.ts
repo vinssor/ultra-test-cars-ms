@@ -6,6 +6,13 @@ import { ManufacturersService } from './manufacturers.service';
 @Crud({
   model: {
     type: Manufacturer
+  },
+  params: {
+    id: {
+      field: 'id',
+      type: 'string',
+      primary: true
+    }
   }
 })
 @Controller('manufacturers')

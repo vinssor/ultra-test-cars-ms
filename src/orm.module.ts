@@ -10,9 +10,9 @@ import { Manufacturer } from './manufacturer/manufacturer.entity';
       type: 'mysql',
       host: 'localhost',
       port: 13306,
-      username: 'root',
-      password: 'root',
-      database: 'test',
+      username: 'ms',
+      password: 'secret',
+      database: 'cars',
       entities: [Manufacturer, Owner, Car],
       synchronize: true
     })

@@ -1,24 +1,8 @@
-import { ApiProperty, ApiPropertyOptional, ApiHideProperty } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import { Type, Exclude } from 'class-transformer';
-import {
-  IsDateString,
-  IsDefined,
-  IsNumber,
-  IsOptional,
-  IsPositive,
-  IsString
-} from 'class-validator';
-import {
-  BaseEntity,
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-  RelationId
-} from 'typeorm';
+import { Exclude, Type } from 'class-transformer';
+import { IsDateString, IsDefined, IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { BaseEntity, Column, Entity, Generated, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, RelationId } from 'typeorm';
 import { Manufacturer } from '../manufacturer/manufacturer.entity';
 import { Owner } from './owner.entity';
 
@@ -29,15 +13,18 @@ export class Car extends BaseEntity {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
-  @PrimaryGeneratedColumn('uuid')
+  @MaxLength(36)
+  @PrimaryColumn()
+  @Generated('uuid')
   id: string;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })
   @IsOptional({ groups: [UPDATE] })
   @IsString({ always: true })
+  @MaxLength(36)
   @RelationId((car: Car) => car.manufacturer)
-  @Column({ nullable: false })
+  @Column({ nullable: false, width: 36 })
   manufacturerId: string;
 
   @ManyToOne(

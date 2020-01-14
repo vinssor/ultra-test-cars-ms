@@ -1,15 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsPhoneNumber,
-  IsPositive,
-  IsString,
-  MaxLength
-} from 'class-validator';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsPositive, IsString, MaxLength } from 'class-validator';
+import { Column, Entity, Generated, PrimaryColumn } from 'typeorm';
 
 const { CREATE, UPDATE } = CrudValidationGroups;
 
@@ -18,15 +10,16 @@ export class Manufacturer {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
-  @PrimaryGeneratedColumn('uuid')
+  @MaxLength(36)
+  @PrimaryColumn()
+  @Generated('uuid')
   id: string;
 
   @ApiProperty()
   @IsNotEmpty({ groups: [CREATE] })
   @IsOptional({ groups: [UPDATE] })
   @IsString({ always: true })
-  @MaxLength(100, { always: true })
-  @Column({ type: 'varchar', length: 100, nullable: false, unique: true })
+  @Column({ nullable: false, unique: true })
   name: string;
 
   @ApiPropertyOptional()
