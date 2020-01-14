@@ -1,4 +1,5 @@
 # compiled output
+/generated
 /dist
 /node_modules
 

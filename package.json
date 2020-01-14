@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "generateapidesc": "rimraf generated && mkdirp generated && sed ':a;N;$!ba;s/\\n/\\\\\\\\n\\\\\\\\\\n/g' API.md | sed 's/'\"'\"'/\\\\\\\\'\"'\"'/g' > generated/API.md && awk '{gsub(\"value\", filetwo)}1' filetwo=\"$(<generated/API.md)\" tpl/api.description.tpl > src/api.description.ts"
   },
   "dependencies": {
     "@nestjs/common": "^6.7.2",
