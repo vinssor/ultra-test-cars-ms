@@ -1,4 +1,13 @@
-import { Controller, Get, UseFilters, UseInterceptors } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  Catch,
+  Controller,
+  Get,
+  UseFilters,
+  UseInterceptors
+} from '@nestjs/common';
+import { BaseExceptionFilter } from '@nestjs/core';
 import { ApiResponse } from '@nestjs/swagger';
 import {
   Crud,
@@ -8,9 +17,21 @@ import {
 } from '@nestjsx/crud';
 import { Manufacturer } from '../manufacturer/manufacturer.entity';
 import { Car } from './car.entity';
-import { CarsExceptionFilter } from './cars.exception-filter';
 import { CarsService } from './cars.service';
+import { NoManufacturerFoundError } from './no-manufacturer-found.error';
 import { Owner } from './owner.entity';
+
+@Catch(NoManufacturerFoundError)
+class NoManufacturerExceptionFilter extends BaseExceptionFilter {
+  catch(exception: NoManufacturerFoundError, host: ArgumentsHost) {
+    super.catch(
+      new BadRequestException(
+        `No manufacturer found with given id [${exception.id}]`
+      ),
+      host
+    );
+  }
+}
 
 @Crud({
   model: {
@@ -37,7 +58,7 @@ import { Owner } from './owner.entity';
     }
   }
 })
-@UseFilters(CarsExceptionFilter)
+@UseFilters(NoManufacturerExceptionFilter)
 @Controller('cars')
 export class CarsController {
   constructor(public service: CarsService) {}

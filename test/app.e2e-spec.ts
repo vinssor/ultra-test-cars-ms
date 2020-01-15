@@ -3,9 +3,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 import { Connection, Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
 import { Car } from '../src/car/car.entity';
 import { Owner } from '../src/car/owner.entity';
+import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
 
 describe('Cars (e2e)', () => {
   let app: INestApplication;

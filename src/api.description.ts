@@ -1,4 +1,5 @@
-export const ApiDescription: string = '## Manfuacturers\n\
+export const ApiDescription: string =
+  '## Manfuacturers\n\
 \n\
 ### Create manufacturers\n\
 \n\

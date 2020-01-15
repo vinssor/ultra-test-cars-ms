@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Car } from './car/car.entity';
-import { Owner } from './car/owner.entity';
-import { Manufacturer } from './manufacturer/manufacturer.entity';
+import { Car } from '../car/car.entity';
+import { Owner } from '../car/owner.entity';
+import { Manufacturer } from '../manufacturer/manufacturer.entity';
 
 @Module({
   imports: [
