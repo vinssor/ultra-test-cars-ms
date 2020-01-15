@@ -8,11 +8,8 @@ import { Owner } from './owner.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Owner, Car])],
-  providers: [
-    CarsService,
-    CarsExceptionFilter
-  ],
+  providers: [CarsService, CarsExceptionFilter],
   controllers: [CarsController],
   exports: [CarsService]
 })
-export class CarModule { }
+export class CarModule {}

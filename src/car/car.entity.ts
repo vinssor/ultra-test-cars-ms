@@ -1,8 +1,30 @@
-import { ApiHideProperty, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiHideProperty,
+  ApiProperty,
+  ApiPropertyOptional
+} from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
 import { Exclude, Type } from 'class-transformer';
-import { IsDateString, IsDefined, IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
-import { BaseEntity, Column, Entity, Generated, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, RelationId } from 'typeorm';
+import {
+  IsDateString,
+  IsDefined,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength
+} from 'class-validator';
+import {
+  BaseEntity,
+  Column,
+  Entity,
+  Generated,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryColumn,
+  RelationId
+} from 'typeorm';
 import { Manufacturer } from '../manufacturer/manufacturer.entity';
 import { Owner } from './owner.entity';
 

@@ -6,4 +6,4 @@ import { OrmModule } from './orm.module';
 @Module({
   imports: [OrmModule, ManufacturerModule, CarModule]
 })
-export class AppModule { }
+export class AppModule {}

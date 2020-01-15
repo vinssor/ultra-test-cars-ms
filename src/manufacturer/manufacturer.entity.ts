@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import { IsInt, IsNotEmpty, IsOptional, IsPhoneNumber, IsPositive, IsString, MaxLength } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPhoneNumber,
+  IsPositive,
+  IsString,
+  MaxLength
+} from 'class-validator';
 import { Column, Entity, Generated, PrimaryColumn } from 'typeorm';
 
 const { CREATE, UPDATE } = CrudValidationGroups;
@@ -26,12 +34,12 @@ export class Manufacturer {
   @IsOptional({ always: true })
   @IsPhoneNumber('ZZ', { always: true })
   @Column({ nullable: true, default: null })
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsInt({ always: true })
   @IsPositive({ always: true })
   @Column({ nullable: true, default: null })
-  siret: number;
+  siret?: number;
 }
