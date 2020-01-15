@@ -87,6 +87,60 @@ describe('Cars (e2e)', () => {
           { id: 'id', name: 'Test2', phone: null, siret: null }
         ]);
     });
+    it('one with conflict', async () => {
+      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      return request(app.getHttpServer())
+        .post('/manufacturers')
+        .send({ name: 'Test1' })
+        .expect(409);
+    });
+    it('many with conflict', async () => {
+      await manufacturerRepository.save([
+        { id: '1', name: 'Test1' },
+        { id: '2', name: 'Test2' },
+        { id: '3', name: 'Test3' }
+      ]);
+      return request(app.getHttpServer())
+        .post('/manufacturers/bulk')
+        .send({ bulk: [{ name: 'Test2' }, { name: 'Test4' }] })
+        .expect(409);
+    });
+  });
+
+  describe('/manufacturers (PUT)', () => {
+    it('create', () => {
+      return request(app.getHttpServer())
+        .put('/manufacturers/1')
+        .send({ name: 'Test1' })
+        .expect(200)
+        .expect({ id: '1', name: 'Test1', phone: null, siret: null });
+    });
+    it('create with conflict', async () => {
+      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      return request(app.getHttpServer())
+        .put('/manufacturers/2')
+        .send({ name: 'Test1' })
+        .expect(409);
+    });
+    it('replace', async () => {
+      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      return request(app.getHttpServer())
+        .put('/manufacturers/1')
+        .send({ name: 'Test2' })
+        .expect(200)
+        .expect({ id: '1', name: 'Test2', phone: null, siret: null });
+    });
+    it('replace with conflict', async () => {
+      await manufacturerRepository.save([
+        { id: '1', name: 'Test1' },
+        { id: '2', name: 'Test2' },
+        { id: '3', name: 'Test3' }
+      ]);
+      return request(app.getHttpServer())
+        .put('/manufacturers/2')
+        .send({ name: 'Test1' })
+        .expect(409);
+    });
   });
 
   describe('/cars (GET)', () => {
@@ -95,6 +149,61 @@ describe('Cars (e2e)', () => {
         .get('/cars')
         .expect(200)
         .expect([]);
+    });
+    it('one', async () => {
+      const manufacturers: Manufacturer[] = [{ id: '1', name: 'Test1' }];
+      await manufacturerRepository.save(manufacturers);
+      const cars: Car[] = [{ id: '1', manufacturerId: '1', price: 100, firstRegistrationDate: new Date(0), owners: [] }];
+      await carRepository.save(cars);
+      return request(app.getHttpServer())
+        .get('/cars')
+        .expect(200)
+        .expect(res =>
+          res?.body?.forEach((element: any) => {
+            element.firstRegistrationDate = new Date(element.firstRegistrationDate);
+            element.reduced = false;
+          })
+        )
+        .expect(cars);
+    });
+    it('many', async () => {
+      const manufacturers: Manufacturer[] = [
+        { id: '1', name: 'Test1' },
+        { id: '2', name: 'Test2' }
+      ];
+      await manufacturerRepository.save(manufacturers);
+      const cars: Car[] = [
+        { id: '1', manufacturerId: '1', price: 100, firstRegistrationDate: new Date(0), owners: [] },
+        { id: '2', manufacturerId: '1', price: 200, firstRegistrationDate: new Date(0), owners: [] },
+        { id: '3', manufacturerId: '2', price: 300, firstRegistrationDate: new Date(0), owners: [] }
+      ];
+      await carRepository.save(cars);
+      return request(app.getHttpServer())
+        .get('/cars')
+        .expect(200)
+        .expect(res =>
+          res?.body?.forEach((element: any) => {
+            element.firstRegistrationDate = new Date(element.firstRegistrationDate);
+            element.reduced = false;
+          })
+        )
+        .expect(cars);
+    });
+  });
+
+  describe('/cars (POST)', () => {
+    it('one', async () => {
+      const manufacturers: Manufacturer[] = [{ id: '1', name: 'Test1' }];
+      await manufacturerRepository.save(manufacturers);
+      return request(app.getHttpServer())
+        .post('/cars')
+        .send({ manufacturerId: '1', price: 100, firstRegistrationDate: new Date(0), owners: [] })
+        .expect(201)
+        .expect(res => {
+          res.body.id = 'id';
+          res.body.firstRegistrationDate = new Date(res.body.firstRegistrationDate);
+        })
+        .expect({ id: 'id', manufacturerId: '1', price: 100, firstRegistrationDate: new Date(0), owners: [] });
     });
   });
 

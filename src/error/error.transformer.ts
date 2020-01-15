@@ -1,78 +1,142 @@
 import { Type } from '@nestjs/common';
 
-export interface ErrorResolverChain {
-  resolve(error: any): any;
+/**
+ * The error filter chain
+ */
+export interface ErrorFilterChain {
+  /**
+   * Chains an error
+   * @param error the error to chain
+   * @returns the chain filter result
+   */
+  filter(error: any): any;
 }
 
-export interface ErrorResolver {
-  resolve(error: any, chain: ErrorResolverChain): any;
+/**
+ * The error filter
+ */
+export interface ErrorFilter {
+  
+  /**
+   * Filters an error
+   * @param error the error to filter
+   * @param chain the filter chain to use
+   * @returns any given error projection to stop filter chain or the given filter chain result
+   */
+  filter(error: any, chain: ErrorFilterChain): any;
 }
 
-export interface ErrorResolverChainStrategy<E> extends Function {
+/**
+ * An error filter chaining strategy
+ */
+export interface ErrorFilterChainingStrategy<E> extends Function {
+  /**
+   * Evaluates an error to continue or stop chaining
+   * @param error the error to evaluate
+   * @returns true to continue chaining, or false to stop chaining
+   */
   (error: E): boolean;
 }
 
-export const ErrorResolverChainContinue: ErrorResolverChainStrategy<any> = (
+/**
+ * A default ErrorFilterChainingStrategy to continue chaining
+ * @param error any error
+ * @returns always true
+ */
+export const ContinueChaining: ErrorFilterChainingStrategy<any> = (
   error: any
 ): boolean => true;
-export const ErrorResolverChainBreak: ErrorResolverChainStrategy<any> = (
+
+/**
+ * A default ErrorFilterChainingStrategy to stop chaining
+ * @param error any error
+ * @returns always false
+ */
+export const StopChaining: ErrorFilterChainingStrategy<any> = (
   error: any
 ): boolean => false;
-export const ErrorResolverChainer = <E>(
-  strategy: ErrorResolverChainStrategy<E>,
-  error: E,
-  chain: ErrorResolverChain
-): any => (strategy(error) ? chain.resolve(error) : error);
 
-export class TypedErrorResolver<F, T> implements ErrorResolver {
+/**
+ * Applies an error filter chaining strategy
+ * @param strategy the error filter chaining strategy to apply
+ * @param error the filtered error
+ * @param chain the error filter chain
+ */
+export const ApplyErrorFilterChainingStrategy = <E>(
+  strategy: ErrorFilterChainingStrategy<E>,
+  error: E,
+  chain: ErrorFilterChain
+): any => (strategy(error) ? chain.filter(error) : error);
+
+/**
+ * A typed error filter.
+ * @param <F> the filtered error type
+ * @param <T> the transformed error type
+ */
+export class TypedErrorFilter<F, T> implements ErrorFilter {
   constructor(
-    readonly resolvedErrorType: Type<F>,
-    private readonly resolveError: (error: F) => T,
-    private readonly chainStrategy: ErrorResolverChainStrategy<T>
+    readonly filteredErrorType: Type<F>,
+    private readonly catchError: (error: F) => T,
+    private readonly chainingStrategy: ErrorFilterChainingStrategy<T>
   ) {}
 
-  resolve(error: any, chain: ErrorResolverChain): any {
+  filter(error: any, chain: ErrorFilterChain): any {
     let resolvedError: T;
     if (
-      error instanceof this.resolvedErrorType &&
-      (resolvedError = this.resolveError(error)) &&
+      error instanceof this.filteredErrorType &&
+      (resolvedError = this.catchError(error)) &&
       <any>resolvedError !== error
     ) {
-      return ErrorResolverChainer(this.chainStrategy, resolvedError, chain);
+      return ApplyErrorFilterChainingStrategy(
+        this.chainingStrategy,
+        resolvedError,
+        chain
+      );
     }
-    return chain.resolve(error);
+    return chain.filter(error);
   }
 }
 
-class IterableErrorResolverChain implements ErrorResolverChain {
-  private readonly iterator: Iterator<ErrorResolver>;
+class IterableErrorFilterChain implements ErrorFilterChain {
+  private readonly iterator: Iterator<ErrorFilter>;
 
-  constructor(resolvers: ErrorResolver[] | Iterable<ErrorResolver>) {
-    this.iterator = resolvers[Symbol.iterator]();
+  constructor(filters: ErrorFilter[] | Iterable<ErrorFilter>) {
+    this.iterator = filters[Symbol.iterator]();
   }
 
-  resolve(error: any): any {
+  filter(error: any): any {
     const element: IteratorResult<
-      ErrorResolver,
-      ErrorResolver
+      ErrorFilter,
+      ErrorFilter
     > = this.iterator.next();
     if (element.done) {
       return error;
     }
-    return element.value.resolve(error, this);
+    return element.value.filter(error, this);
   }
 }
 
+/**
+ * The error transformer with a filter chain result
+ */
 export class ErrorTransformer {
-  private readonly resolvers: ErrorResolver[];
+  private readonly filters: ErrorFilter[];
 
-  constructor(resolvers: ErrorResolver[] | Iterable<ErrorResolver>) {
-    this.resolvers = Array.isArray(resolvers)
-      ? resolvers.slice()
-      : Array.from(resolvers);
+  /**
+   * @param filters the filters to chain
+   */
+  constructor(filters: ErrorFilter[] | Iterable<ErrorFilter>) {
+    this.filters = Array.isArray(filters)
+      ? filters.slice()
+      : Array.from(filters);
   }
 
-  map(error: any): any {
-    return new IterableErrorResolverChain(this.resolvers).resolve(error);
+  /**
+   * Transforms an error to anoth using filters
+   * @param error the error to transform
+   * @returns the transformed error
+   */
+  transform(error: any): any {
+    return new IterableErrorFilterChain(this.filters).filter(error);
   }
 }

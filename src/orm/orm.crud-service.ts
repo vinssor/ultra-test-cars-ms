@@ -12,7 +12,7 @@ export class OrmCrudService<T> extends TypeOrmCrudService<T> {
   }
 
   private mapError(error: any): Promise<any> {
-    return Promise.reject(this.errorTransformer.map(error));
+    return Promise.reject(this.errorTransformer.transform(error));
   }
 
   @Override()

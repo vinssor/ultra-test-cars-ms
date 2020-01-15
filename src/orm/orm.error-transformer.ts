@@ -1,10 +1,10 @@
 import { Connection, DatabaseType, QueryFailedError } from 'typeorm';
 import {
-  ErrorResolver,
-  ErrorResolverChainContinue,
-  ErrorResolverChainStrategy,
+  ErrorFilter,
   ErrorTransformer,
-  TypedErrorResolver
+  TypedErrorFilter,
+  ErrorFilterChainingStrategy,
+  ContinueChaining
 } from '../error/error.transformer';
 
 export class DuplicateEntityError extends Error {
@@ -21,22 +21,24 @@ export class EntityRelationError extends Error {
   }
 }
 
-export class QueryFailedErrorResolver<T> extends TypedErrorResolver<
+export class QueryFailedErrorFilter<T> extends TypedErrorFilter<
   QueryFailedError,
   T
 > {
   constructor(
-    resolveError: (error: QueryFailedError) => T,
-    chainStrategy: ErrorResolverChainStrategy<T>
+    catchError: (error: QueryFailedError) => T,
+    chainStrategy: ErrorFilterChainingStrategy<T>
   ) {
-    super(QueryFailedError, resolveError, chainStrategy);
+    super(QueryFailedError, catchError, chainStrategy);
   }
 }
 
-export class SqlDuplicateEntityErrorResolver extends QueryFailedErrorResolver<
+export class SqlDuplicateEntityErrorFilter extends QueryFailedErrorFilter<
   DuplicateEntityError
 > {
-  constructor(chainStrategy: ErrorResolverChainStrategy<DuplicateEntityError>) {
+  constructor(
+    chainStrategy: ErrorFilterChainingStrategy<DuplicateEntityError>
+  ) {
     super((error: QueryFailedError): DuplicateEntityError => {
       const sqlError: any = <any>error;
       const sqlState: string = sqlError.sqlState;
@@ -50,14 +52,14 @@ export class SqlDuplicateEntityErrorResolver extends QueryFailedErrorResolver<
     }, chainStrategy);
   }
 }
-const defaultSqlDuplicateEntityErrorResolver = new SqlDuplicateEntityErrorResolver(
-  ErrorResolverChainContinue
+const defaultSqlDuplicateEntityErrorFilter = new SqlDuplicateEntityErrorFilter(
+  ContinueChaining
 );
 
-export class SqlEntityRelationErrorResolver extends QueryFailedErrorResolver<
+export class SqlEntityRelationErrorFilter extends QueryFailedErrorFilter<
   EntityRelationError
 > {
-  constructor(chainStrategy: ErrorResolverChainStrategy<EntityRelationError>) {
+  constructor(chainStrategy: ErrorFilterChainingStrategy<EntityRelationError>) {
     super((error: QueryFailedError): EntityRelationError => {
       const sqlError: any = <any>error;
       const sqlState: string = sqlError.sqlState;
@@ -72,43 +74,43 @@ export class SqlEntityRelationErrorResolver extends QueryFailedErrorResolver<
   }
 }
 
-const defaultSqlEntityRelationErrorResolver = new SqlEntityRelationErrorResolver(
-  ErrorResolverChainContinue
+const defaultSqlEntityRelationErrorFilter = new SqlEntityRelationErrorFilter(
+  ContinueChaining
 );
 
 export class OrmErrorTransformer extends ErrorTransformer {
   constructor(
     readonly connection: Connection,
-    resolvers?: ErrorResolver[] | Iterable<ErrorResolver>
+    filters?: ErrorFilter[] | Iterable<ErrorFilter>
   ) {
     super(
       OrmErrorTransformer.concat(
-        OrmErrorTransformer.ormErrorResolvers(connection.options.type),
-        resolvers
+        OrmErrorTransformer.ormErrorFilters(connection.options.type),
+        filters
       )
     );
   }
 
   static concat(
-    ormResolvers: ErrorResolver[],
-    resolvers?: ErrorResolver[] | Iterable<ErrorResolver>
-  ): ErrorResolver[] {
-    if (!resolvers) {
-      return ormResolvers;
+    ormFilters: ErrorFilter[],
+    filters?: ErrorFilter[] | Iterable<ErrorFilter>
+  ): ErrorFilter[] {
+    if (!filters) {
+      return ormFilters;
     }
-    return ormResolvers.concat(
-      Array.isArray(resolvers) ? resolvers : Array.from(resolvers)
+    return ormFilters.concat(
+      Array.isArray(filters) ? filters : Array.from(filters)
     );
   }
 
-  static ormErrorResolvers(databaseType: DatabaseType): ErrorResolver[] {
-    const ormResolvers: ErrorResolver[] = [];
+  static ormErrorFilters(databaseType: DatabaseType): ErrorFilter[] {
+    const ormFilters: ErrorFilter[] = [];
     switch (databaseType) {
       case 'mongodb': // TODO
       default:
-        ormResolvers.push(defaultSqlDuplicateEntityErrorResolver);
-        ormResolvers.push(defaultSqlEntityRelationErrorResolver);
+        ormFilters.push(defaultSqlDuplicateEntityErrorFilter);
+        ormFilters.push(defaultSqlEntityRelationErrorFilter);
     }
-    return ormResolvers;
+    return ormFilters;
   }
 }

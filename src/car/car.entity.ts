@@ -31,7 +31,7 @@ import { Owner } from './owner.entity';
 const { CREATE, UPDATE } = CrudValidationGroups;
 
 @Entity()
-export class Car extends BaseEntity {
+export class Car {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
@@ -57,7 +57,7 @@ export class Car extends BaseEntity {
     }
   )
   @JoinColumn()
-  manufacturer: Manufacturer;
+  manufacturer?: Manufacturer;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })
@@ -70,7 +70,7 @@ export class Car extends BaseEntity {
   @ApiHideProperty()
   @Exclude({ toPlainOnly: true })
   @Column({ default: false })
-  reduced: boolean;
+  reduced?: boolean;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })
@@ -88,5 +88,5 @@ export class Car extends BaseEntity {
     }
   )
   @Type(() => Owner)
-  owners: Owner[];
+  owners?: Owner[];
 }
