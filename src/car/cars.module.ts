@@ -12,4 +12,4 @@ import { Owner } from './owner.entity';
   controllers: [CarsController],
   exports: [CarsService]
 })
-export class CarModule {}
+export class CarsModule {}

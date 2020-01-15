@@ -6,38 +6,55 @@ import {
   ErrorFilterChainingStrategy,
   ContinueChaining
 } from '../error/error.transformer';
+import { Injectable } from '@nestjs/common';
 
+/**
+ * The ORM duplicate entity error
+ */
 export class DuplicateEntityError extends Error {
-  constructor(message?: string, readonly parameters?: any[]) {
+  readonly parameters: any[];
+  constructor(message: string, parameters?: any[]) {
     super(message);
+    this.parameters = parameters ? parameters : [];
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
+/**
+ * The ORM entity relation error
+ */
 export class EntityRelationError extends Error {
-  constructor(message?: string, readonly parameters?: any[]) {
+  readonly parameters: any[];
+  constructor(message: string, parameters?: any[]) {
     super(message);
+    this.parameters = parameters ? parameters : [];
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
+/**
+ * A query failed error filter using catchError map function and chaining strategy
+ */
 export class QueryFailedErrorFilter<T> extends TypedErrorFilter<
   QueryFailedError,
   T
 > {
   constructor(
     catchError: (error: QueryFailedError) => T,
-    chainStrategy: ErrorFilterChainingStrategy<T>
+    chainingStrategy: ErrorFilterChainingStrategy<T>
   ) {
-    super(QueryFailedError, catchError, chainStrategy);
+    super(QueryFailedError, catchError, chainingStrategy);
   }
 }
 
+/**
+ * The SQL duplicate entity error filter using chaining strategy
+ */
 export class SqlDuplicateEntityErrorFilter extends QueryFailedErrorFilter<
   DuplicateEntityError
 > {
   constructor(
-    chainStrategy: ErrorFilterChainingStrategy<DuplicateEntityError>
+    chainingStrategy: ErrorFilterChainingStrategy<DuplicateEntityError>
   ) {
     super((error: QueryFailedError): DuplicateEntityError => {
       const sqlError: any = <any>error;
@@ -49,17 +66,22 @@ export class SqlDuplicateEntityErrorFilter extends QueryFailedErrorFilter<
         return new DuplicateEntityError(error.message, (<any>error).parameters);
       }
       return null;
-    }, chainStrategy);
+    }, chainingStrategy);
   }
 }
 const defaultSqlDuplicateEntityErrorFilter = new SqlDuplicateEntityErrorFilter(
   ContinueChaining
 );
 
+/**
+ * The SQL entity relation error filter using chaining strategy
+ */
 export class SqlEntityRelationErrorFilter extends QueryFailedErrorFilter<
   EntityRelationError
 > {
-  constructor(chainStrategy: ErrorFilterChainingStrategy<EntityRelationError>) {
+  constructor(
+    chainingStrategy: ErrorFilterChainingStrategy<EntityRelationError>
+  ) {
     super((error: QueryFailedError): EntityRelationError => {
       const sqlError: any = <any>error;
       const sqlState: string = sqlError.sqlState;
@@ -70,7 +92,7 @@ export class SqlEntityRelationErrorFilter extends QueryFailedErrorFilter<
         return new EntityRelationError(error.message, sqlError.parameters);
       }
       return null;
-    }, chainStrategy);
+    }, chainingStrategy);
   }
 }
 
@@ -78,6 +100,9 @@ const defaultSqlEntityRelationErrorFilter = new SqlEntityRelationErrorFilter(
   ContinueChaining
 );
 
+/**
+ * The ORM Error transformer provides duplicate entity and entity relation errors mappings
+ */
 export class OrmErrorTransformer extends ErrorTransformer {
   constructor(
     readonly connection: Connection,

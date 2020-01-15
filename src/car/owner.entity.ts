@@ -27,7 +27,7 @@ export class Owner {
   @MaxLength(36)
   @PrimaryColumn()
   @Generated('uuid')
-  id: number;
+  id: string;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })
@@ -51,5 +51,5 @@ export class Owner {
     }
   )
   @JoinColumn()
-  car: Car;
+  car?: Car;
 }

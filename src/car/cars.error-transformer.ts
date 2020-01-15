@@ -15,7 +15,7 @@ const NoManufacturerErrorFilter: ErrorFilter = new TypedErrorFilter(
   EntityRelationError,
   error =>
     error.message.indexOf('manufacturerId') > -1
-      ? new NoManufacturerFoundError(error?.parameters[1])
+      ? new NoManufacturerFoundError(error.parameters[1])
       : error,
   StopChaining
 );

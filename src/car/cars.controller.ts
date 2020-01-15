@@ -5,7 +5,8 @@ import {
   Controller,
   Get,
   UseFilters,
-  UseInterceptors
+  UseInterceptors,
+  ConflictException
 } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import { ApiResponse } from '@nestjs/swagger';
@@ -20,6 +21,19 @@ import { Car } from './car.entity';
 import { CarsService } from './cars.service';
 import { NoManufacturerFoundError } from './no-manufacturer-found.error';
 import { Owner } from './owner.entity';
+import { DuplicateEntityError } from '../orm/orm.error-transformer';
+
+@Catch(DuplicateEntityError)
+class DuplicateEntityExceptionFilter extends BaseExceptionFilter {
+  catch(exception: DuplicateEntityError, host: ArgumentsHost) {
+    super.catch(
+      new ConflictException(
+        `A car with id [${exception.parameters[0]}] already exists`
+      ),
+      host
+    );
+  }
+}
 
 @Catch(NoManufacturerFoundError)
 class NoManufacturerExceptionFilter extends BaseExceptionFilter {
@@ -58,7 +72,7 @@ class NoManufacturerExceptionFilter extends BaseExceptionFilter {
     }
   }
 })
-@UseFilters(NoManufacturerExceptionFilter)
+@UseFilters(NoManufacturerExceptionFilter, DuplicateEntityExceptionFilter)
 @Controller('cars')
 export class CarsController {
   constructor(public service: CarsService) {}
@@ -69,19 +83,10 @@ export class CarsController {
   async getCarManufacturer(
     @ParsedRequest() req: CrudRequest
   ): Promise<Manufacturer> {
-    req.options.query.join.manufacturer = {
-      eager: true
+    const eagerRequest: CrudRequest = {
+      ...req,
+      ...{ options: { query: { join: { manufacturer: { eager: true } } } } }
     };
-    return this.service.getOne(req).then(car => car.manufacturer);
-  }
-
-  @ApiResponse({ type: Owner, isArray: true })
-  @UseInterceptors(CrudRequestInterceptor)
-  @Get(':id/owners')
-  async getCarOwners(@ParsedRequest() req: CrudRequest): Promise<Owner[]> {
-    req.options.query.join.owners = {
-      eager: true
-    };
-    return this.service.getOne(req).then(car => car.owners);
+    return this.service.getOne(eagerRequest).then(car => car.manufacturer);
   }
 }

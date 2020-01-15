@@ -16,7 +16,7 @@ class DuplicateEntityExceptionFilter extends BaseExceptionFilter {
   catch(exception: DuplicateEntityError, host: ArgumentsHost) {
     super.catch(
       new ConflictException(
-        `Duplicate manufacturer with name [${exception?.parameters[1]}]`
+        `Duplicate manufacturer with name [${exception.parameters[1]}]`
       ),
       host
     );

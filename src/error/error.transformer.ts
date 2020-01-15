@@ -16,7 +16,6 @@ export interface ErrorFilterChain {
  * The error filter
  */
 export interface ErrorFilter {
-  
   /**
    * Filters an error
    * @param error the error to filter
