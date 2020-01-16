@@ -70,7 +70,7 @@ export class Car {
   @ApiHideProperty()
   @Exclude({ toPlainOnly: true })
   @Column({ default: false })
-  discountedPrice?: boolean;
+  priceDiscountApplied?: boolean;
 
   @ApiProperty()
   @IsDefined({ groups: [CREATE] })

@@ -5,9 +5,19 @@ import { CarsController } from './cars.controller';
 import { CarsErrorTransformer } from './cars.error-transformer';
 import { CarsService } from './cars.service';
 import { Owner } from './owner.entity';
+import { BullModule } from '@nestjs/bull';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Owner, Car])],
+  imports: [
+    TypeOrmModule.forFeature([Owner, Car]),
+    BullModule.registerQueue({
+      name: 'car',
+      redis: {
+        host: 'localhost',
+        port: 16379
+      }
+    })
+  ],
   providers: [CarsErrorTransformer, CarsService],
   controllers: [CarsController],
   exports: [CarsService]

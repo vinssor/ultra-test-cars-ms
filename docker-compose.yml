@@ -11,8 +11,20 @@ services:
       MYSQL_PASSWORD: secret
       MYSQL_DATABASE: cars
     network_mode: host
+  redis:
+    container_name: ultra-tech-test-cars-redis
+    build: ./docker/redis
+    image: ultra-tech-test/cars-redis:latest
+    network_mode: host
+    environment:
+      REDIS_MASTER_PORT_NUMBER: 16379
   ms:
     container_name: ultra-tech-test-cars-ms
-    build: .
+    build:
+      context: .
+      dockerfile: ./docker/ms/Dockerfile
     image: ultra-tech-test/cars-ms:latest
     network_mode: host
+    depends_on:
+      - db
+      - redis

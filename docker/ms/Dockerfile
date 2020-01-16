@@ -2,9 +2,9 @@ FROM node:lts
 
 RUN mkdir -p /opt/cars-ms
 WORKDIR /opt/cars-ms
-COPY ./*.json /opt/cars-ms/
+COPY ./*.json ./
 RUN npm ci
-COPY ./src /opt/cars-ms/src
+COPY ./src ./src
 RUN npm run prebuild
 RUN npm run build
 
