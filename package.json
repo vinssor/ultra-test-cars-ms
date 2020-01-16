@@ -21,6 +21,7 @@
     "generate:api-desc": "rimraf generated && mkdirp generated && sed ':a;N;$!ba;s/\\n/\\\\\\\\n\\\\\\\\\\n/g' API.md | sed 's/'\"'\"'/\\\\\\\\'\"'\"'/g' > generated/API.md && awk '{gsub(\"value\", filetwo)}1' filetwo=\"$(<generated/API.md)\" tpl/api.description.tpl > src/api.description.ts"
   },
   "dependencies": {
+    "@nestjs/bull": "0.0.1-beta.4",
     "@nestjs/common": "^6.7.2",
     "@nestjs/config": "0.0.9",
     "@nestjs/core": "^6.7.2",
@@ -29,6 +30,7 @@
     "@nestjs/typeorm": "^6.2.0",
     "@nestjsx/crud": "^4.4.1",
     "@nestjsx/crud-typeorm": "^4.4.1",
+    "bull": "^3.12.1",
     "class-transformer": "^0.2.3",
     "class-validator": "^0.11.0",
     "mysql": "^2.17.1",
@@ -43,6 +45,7 @@
     "@nestjs/cli": "^6.14.0",
     "@nestjs/schematics": "^6.7.0",
     "@nestjs/testing": "^6.7.1",
+    "@types/bull": "^3.10.6",
     "@types/express": "^4.17.1",
     "@types/jest": "^24.0.18",
     "@types/node": "^12.7.5",
