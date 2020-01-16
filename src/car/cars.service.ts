@@ -22,17 +22,26 @@ const twelveMonthMillis: number = 12 * monthMillis;
 const eighteenMonthMillis: number = 18 * monthMillis;
 const defaultPriceDiscountRate = 0.2;
 
+/**
+ * The job progress
+ */
 class JobProgress {
   private processed: number = 0;
   private discountedPrices: number = 0;
   private removedOwners: number = 0;
   constructor(private readonly of: number) {}
 
+  /**
+   * Increments discounted price counter
+   */
   incrementDiscounted(): JobProgress {
     this.discountedPrices++;
     return this;
   }
 
+  /**
+   * Adds given count to removed owner counter
+   */
   addRemovedOwners(count: number): JobProgress {
     if (count > 0) {
       this.discountedPrices += count;
@@ -40,11 +49,17 @@ class JobProgress {
     return this;
   }
 
+  /**
+   * Increments processed car counter
+   */
   increment(): JobProgress {
     this.processed++;
     return this;
   }
 
+  /**
+   * Returns the progress value [0, 100]
+   */
   value(): number {
     if (this.of === 0) {
       return 100;
@@ -55,6 +70,9 @@ class JobProgress {
     return Math.min(100, Math.max((1 - this.processed / this.of) * 100, 0));
   }
 
+  /**
+   * Returns the job result
+   */
   result(): JobResultDto {
     if (this.processed !== this.of) {
       throw new AssertionError({
@@ -72,7 +90,7 @@ class JobProgress {
 }
 
 /**
- * The cars service based on OrmCrudService.
+ * The cars service.
  */
 @Processor('car')
 @Injectable()
@@ -80,7 +98,7 @@ export class CarsService extends OrmCrudService<Car> {
   constructor(
     @InjectRepository(Car) repo: Repository<Car>,
     errorTransformer: CarsErrorTransformer,
-    @InjectQueue('car') private readonly queue: Queue
+    @InjectQueue('car') private readonly queue: Queue<JobCriteriaDto>
   ) {
     super(repo, errorTransformer);
   }
@@ -88,7 +106,7 @@ export class CarsService extends OrmCrudService<Car> {
   private static async jobToDto(job: Job<JobCriteriaDto>): Promise<JobDto> {
     return {
       id: job.id.toString(),
-      data: job.data,
+      criteria: job.data,
       createdAt: new Date(job.timestamp),
       status: await job.getState(),
       progress: await job.progress(),
@@ -115,7 +133,10 @@ export class CarsService extends OrmCrudService<Car> {
     };
   }
 
-  private static jobOwnersToKeep(jobCriteria: JobCriteriaDto, jobProgress: JobProgress): (car: Car) => Owner[] {
+  private static jobOwnersToKeep(
+    jobCriteria: JobCriteriaDto,
+    jobProgress: JobProgress
+  ): (car: Car) => Owner[] {
     return (car: Car) => {
       const initialSize = car.owners.length;
       const result = car.owners.filter(
@@ -124,7 +145,7 @@ export class CarsService extends OrmCrudService<Car> {
       );
       jobProgress.addRemovedOwners(initialSize - result.length);
       return result;
-    }
+    };
   }
 
   private static jobIsCarToApplyPriceDiscount(
@@ -151,7 +172,7 @@ export class CarsService extends OrmCrudService<Car> {
         return car.price * (1 - jobCriteria.priceDiscountRate);
       }
       return car.price;
-    }
+    };
   }
 
   /**
@@ -164,12 +185,20 @@ export class CarsService extends OrmCrudService<Car> {
       .then(job => CarsService.jobToDto(job));
   }
 
+  /**
+   * Lists all jobs
+   * @returns all jobs
+   */
   async listJobs(): Promise<Array<JobDto>> {
     return this.queue
       .getJobs([])
       .then(jobs => Promise.all(jobs.map(job => CarsService.jobToDto(job))));
   }
 
+  /**
+   * Retreives on job with given id
+   * @param id the requested job id
+   */
   async getOneJob(id: string): Promise<JobDto> {
     return this.queue.getJob(id).then(job => CarsService.jobToDto(job));
   }
@@ -234,6 +263,12 @@ export class CarsService extends OrmCrudService<Car> {
 
   @OnQueueCompleted()
   protected onJobCompleted(job: Job, result: JobResultDto): void {
-    console.log('Car job [', job.id, '] completed for [', result.processedCars, '] cars');
+    console.log(
+      'Car job [',
+      job.id,
+      '] completed for [',
+      result.processedCars,
+      '] cars'
+    );
   }
 }

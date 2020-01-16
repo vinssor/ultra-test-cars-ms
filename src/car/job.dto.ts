@@ -37,7 +37,7 @@ export class JobDto {
    * The custom data passed when the job was created
    */
   @ApiProperty()
-  data: JobCriteriaDto;
+  criteria: JobCriteriaDto;
 
   @ApiProperty()
   status: JobStatus;

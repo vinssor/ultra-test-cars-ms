@@ -14,15 +14,15 @@ $ npm install
 
 ```bash
 # development
-$ docker-compose up -d db
+$ docker-compose up -d db redis
 $ npm run start
 
 # watch mode
-$ docker-compose up -d db
+$ docker-compose up -d db redis
 $ npm run start:dev
 
 # production mode
-$ docker-compose up -d db
+$ docker-compose up -d db redis
 $ npm run start:prod
 ```
 
@@ -33,7 +33,7 @@ $ npm run start:prod
 $ npm run test
 
 # e2e tests
-$ docker-compose up -d db
+$ docker-compose up -d db redis
 $ npm run test:e2e
 
 # test coverage

@@ -5,20 +5,18 @@ import {
   ConflictException,
   Controller,
   Get,
+  NotFoundException,
+  Param,
   Post,
   UseFilters,
-  UseInterceptors,
-  Param,
-  NotFoundException
+  UseInterceptors
 } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import {
   ApiCreatedResponse,
-  ApiOkResponse,
-  ApiResponse,
   ApiNotFoundResponse,
-  ApiOperation,
-  ApiTags
+  ApiOkResponse,
+  ApiOperation
 } from '@nestjs/swagger';
 import {
   Crud,

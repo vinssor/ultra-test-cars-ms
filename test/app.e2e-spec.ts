@@ -1,9 +1,12 @@
+import { InjectQueue, Processor } from '@nestjs/bull';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Job, Queue } from 'bull';
 import * as request from 'supertest';
 import { Connection, Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { Car } from '../src/car/car.entity';
+import { JobCriteriaDto, JobResultDto } from '../src/car/job.dto';
 import { Owner } from '../src/car/owner.entity';
 import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
 
@@ -17,16 +20,49 @@ const cloneArray = <T>(o: T[]): Partial<T>[] => {
   return result;
 };
 
+@Processor('car')
+class TestQueueProcessor {
+
+  private activeHandlers : ((job: Job<JobCriteriaDto>) => any)[] = [];
+  private completedHandlers : ((job: Job<JobCriteriaDto>, result: JobResultDto) => any)[] = [];
+  private failedHandlers : ((job: Job<JobCriteriaDto>, error: Error) => any)[] = [];
+  constructor(@InjectQueue('car') readonly queue: Queue<JobCriteriaDto>) {}
+
+  addActiveHandler(handler: (job: Job<JobCriteriaDto>) => any) : () => void {
+    this.activeHandlers.push(handler);
+    return () => {
+      this.activeHandlers = this.activeHandlers.filter(currentHandler => currentHandler !== handler);
+    }
+  }
+
+  addCompletedHandler(handler: (job: Job<JobCriteriaDto>, result: JobResultDto) => any) : () => void {
+    this.completedHandlers.push(handler);
+    return () => {
+      this.completedHandlers = this.completedHandlers.filter(currentHandler => currentHandler !== handler);
+    }
+  }
+
+  addFailedHandler(handler: (job: Job<JobCriteriaDto>, error: Error) => any) : () => void {
+    this.failedHandlers.push(handler);
+    return () => {
+      this.failedHandlers = this.failedHandlers.filter(currentHandler => currentHandler !== handler);
+    }
+  }
+
+}
+
 describe('Cars (e2e)', () => {
   let app: INestApplication;
   let connection: Connection;
   let manufacturerRepository: Repository<Manufacturer>;
   let carRepository: Repository<Car>;
   let ownerRepository: Repository<Owner>;
+  let queueProcessor: TestQueueProcessor;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule]
+      imports: [AppModule],
+      providers: [TestQueueProcessor]
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -34,6 +70,7 @@ describe('Cars (e2e)', () => {
     manufacturerRepository = connection.getRepository(Manufacturer);
     carRepository = connection.getRepository(Car);
     ownerRepository = connection.getRepository(Owner);
+    queueProcessor = moduleFixture.get<TestQueueProcessor>(TestQueueProcessor);
     await app.init();
   });
 
@@ -538,6 +575,22 @@ describe('Cars (e2e)', () => {
           });
         })
         .expect({ ...{ id: '1' }, ...car });
+    });
+  });
+
+
+  describe('/cars/jobs (POST)', () => {
+    it('create one', async () => {
+      request(app.getHttpServer())
+        .post('/cars/jobs')
+        .send()
+        .expect(201);
+      return queueProcessor.queue.getJobs([]).then(
+        jobs => Promise.all(jobs.map(job => job.finished().then(result => {
+          expect(result).toBeDefined();
+          expect(result).toBeInstanceOf(JobResultDto);
+        })))
+      );
     });
   });
 
