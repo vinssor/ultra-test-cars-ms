@@ -1,4 +1,4 @@
-import { InjectQueue, Processor, BullModule } from '@nestjs/bull';
+import { BullModule, InjectQueue, Processor } from '@nestjs/bull';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Job, Queue } from 'bull';
@@ -6,10 +6,10 @@ import * as request from 'supertest';
 import { Connection, Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { Car } from '../src/car/car.entity';
+import { CarsService } from '../src/car/cars.service';
 import { JobCriteriaDto, JobResultDto } from '../src/car/job.dto';
 import { Owner } from '../src/car/owner.entity';
 import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
-import { CarsService } from '../src/car/cars.service';
 
 const clone = <T>(o: T): Partial<T> => {
   return { ...o, ...{} };
@@ -23,7 +23,7 @@ const cloneArray = <T>(o: T[]): Partial<T>[] => {
 
 const nowAddMonth = (count: number): Date => {
   return new Date(CarsService.addMonth(Date.now(), count));
-}
+};
 
 @Processor('car')
 class TestQueueProcessor {
@@ -36,7 +36,7 @@ class TestQueueProcessor {
     job: Job<JobCriteriaDto>,
     error: Error
   ) => any)[] = [];
-  constructor(@InjectQueue('car') readonly queue: Queue<JobCriteriaDto>) { }
+  constructor(@InjectQueue('car') readonly queue: Queue<JobCriteriaDto>) {}
 
   addActiveHandler(handler: (job: Job<JobCriteriaDto>) => any): () => void {
     this.activeHandlers.push(handler);
@@ -615,7 +615,7 @@ describe('Cars (e2e)', () => {
         .post('/cars/jobs')
         .send()
         .expect(201)
-        .expect(res => jobId = res.body?.id);
+        .expect(res => (jobId = res.body?.id));
       expect(jobId).toBeDefined();
       const job = await queueProcessor.queue.getJob(jobId);
       expect(job).toBeDefined();
@@ -626,7 +626,10 @@ describe('Cars (e2e)', () => {
       expect(resultDto.removedOwners).toEqual(0);
     });
     it('trigger: no matching car', async () => {
-      await manufacturerRepository.insert([{ id: '1', name: 'Test1' }, { id: '2', name: 'Test2' }]);
+      await manufacturerRepository.insert([
+        { id: '1', name: 'Test1' },
+        { id: '2', name: 'Test2' }
+      ]);
       await carRepository.save([
         {
           id: '1',
@@ -664,7 +667,7 @@ describe('Cars (e2e)', () => {
         .post('/cars/jobs')
         .send()
         .expect(201)
-        .expect(res => jobId = res.body?.id);
+        .expect(res => (jobId = res.body?.id));
       expect(jobId).toBeDefined();
       const job = await queueProcessor.queue.getJob(jobId);
       expect(job).toBeDefined();
@@ -675,7 +678,10 @@ describe('Cars (e2e)', () => {
       expect(resultDto.removedOwners).toEqual(0);
     });
     it('trigger: matching cars', async () => {
-      await manufacturerRepository.insert([{ id: '1', name: 'Test1' }, { id: '2', name: 'Test2' }]);
+      await manufacturerRepository.insert([
+        { id: '1', name: 'Test1' },
+        { id: '2', name: 'Test2' }
+      ]);
       await carRepository.save([
         {
           id: '1',
@@ -693,8 +699,8 @@ describe('Cars (e2e)', () => {
           price: 200,
           firstRegistrationDate: nowAddMonth(-20),
           owners: [
-            { id: '3', name: 'Test1', purchaseDate: nowAddMonth(-19) },
-            { id: '4', name: 'Test2', purchaseDate: new Date() }
+            { id: '1', name: 'Test1', purchaseDate: nowAddMonth(-19) },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
           ]
         },
         {
@@ -703,8 +709,8 @@ describe('Cars (e2e)', () => {
           price: 300,
           firstRegistrationDate: nowAddMonth(-13),
           owners: [
-            { id: '5', name: 'Test1', purchaseDate: new Date() },
-            { id: '6', name: 'Test2', purchaseDate: new Date() }
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
           ]
         },
         {
@@ -713,8 +719,8 @@ describe('Cars (e2e)', () => {
           price: 400,
           firstRegistrationDate: nowAddMonth(-17),
           owners: [
-            { id: '7', name: 'Test1', purchaseDate: new Date() },
-            { id: '8', name: 'Test2', purchaseDate: nowAddMonth(-19) }
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: nowAddMonth(-19) }
           ]
         },
         {
@@ -723,8 +729,8 @@ describe('Cars (e2e)', () => {
           price: 500,
           firstRegistrationDate: nowAddMonth(-19),
           owners: [
-            { id: '9', name: 'Test1', purchaseDate: new Date() },
-            { id: '10', name: 'Test2', purchaseDate: new Date() }
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
           ]
         },
         {
@@ -734,8 +740,8 @@ describe('Cars (e2e)', () => {
           firstRegistrationDate: nowAddMonth(-16),
           priceDiscounted: true,
           owners: [
-            { id: '11', name: 'Test1', purchaseDate: new Date() },
-            { id: '12', name: 'Test2', purchaseDate: new Date() }
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
           ]
         }
       ]);
@@ -744,7 +750,7 @@ describe('Cars (e2e)', () => {
         .post('/cars/jobs')
         .send()
         .expect(201)
-        .expect(res => jobId = res.body?.id);
+        .expect(res => (jobId = res.body?.id));
       expect(jobId).toBeDefined();
       const job = await queueProcessor.queue.getJob(jobId);
       expect(job).toBeDefined();

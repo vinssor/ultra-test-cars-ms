@@ -27,7 +27,6 @@ export class JobCriteriaDto {
  * The job's result
  */
 export class JobResultDto {
-
   @ApiProperty()
   discountedPrices: number;
 

@@ -15,7 +15,6 @@ import {
   MaxLength
 } from 'class-validator';
 import {
-  BaseEntity,
   Column,
   Entity,
   Generated,

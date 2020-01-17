@@ -10,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AssertionError } from 'assert';
 import { Job, Queue } from 'bull';
-import { Between, LessThan, Repository, MoreThan } from 'typeorm';
+import { Between, LessThan, Repository } from 'typeorm';
 import { OrmCrudService } from '../orm/orm.crud-service';
 import { Car } from './car.entity';
 import { CarsErrorTransformer } from './cars.error-transformer';
@@ -37,7 +37,10 @@ class JobProgress {
   private discountedPrices: number = 0;
   private removedOwners: number = 0;
   private readonly maxProcessed: number;
-  constructor(private readonly pricesToDiscount: number, private readonly ownersToRemove: number) {
+  constructor(
+    private readonly pricesToDiscount: number,
+    private readonly ownersToRemove: number
+  ) {
     this.maxProcessed = pricesToDiscount + ownersToRemove;
   }
 
@@ -78,7 +81,10 @@ class JobProgress {
     }
     return Math.min(
       jobMaxProgress,
-      Math.max((1 - this.processed / this.maxProcessed) * jobMaxProgress, jobMinProgress)
+      Math.max(
+        (1 - this.processed / this.maxProcessed) * jobMaxProgress,
+        jobMinProgress
+      )
     );
   }
 
@@ -115,7 +121,8 @@ class JobProgress {
 export class CarsService extends OrmCrudService<Car> {
   constructor(
     @InjectRepository(Car) carRepository: Repository<Car>,
-    @InjectRepository(Owner) private readonly ownerRepository: Repository<Owner>,
+    @InjectRepository(Owner)
+    private readonly ownerRepository: Repository<Owner>,
     errorTransformer: CarsErrorTransformer,
     @InjectQueue('car') private readonly queue: Queue<JobCriteriaDto>
   ) {
@@ -152,14 +159,23 @@ export class CarsService extends OrmCrudService<Car> {
       priceDiscount: {
         rate: defaultPriceDiscountRate,
         carsWithFirstRegistrationDateAfter: new Date(
-          CarsService.addMonth(currentTimeMillis, -priceDiscountNumberOfMonthLowerBound)
+          CarsService.addMonth(
+            currentTimeMillis,
+            -priceDiscountNumberOfMonthLowerBound
+          )
         ),
         carsWithFirstRegistrationDateBefore: new Date(
-          CarsService.addMonth(currentTimeMillis, -priceDiscountNumberOfMonthUpperBound)
+          CarsService.addMonth(
+            currentTimeMillis,
+            -priceDiscountNumberOfMonthUpperBound
+          )
         )
       },
       removeOwnersWithPurchaseDateBefore: new Date(
-        CarsService.addMonth(currentTimeMillis, -removeOwnersNumberOfMonthUpperBound)
+        CarsService.addMonth(
+          currentTimeMillis,
+          -removeOwnersNumberOfMonthUpperBound
+        )
       )
     };
   }
@@ -230,20 +246,19 @@ export class CarsService extends OrmCrudService<Car> {
       }
     });
     const ownersAndCount = await this.ownerRepository.findAndCount({
-      where: { purchaseDate: LessThan(criteria.removeOwnersWithPurchaseDateBefore) }
+      where: {
+        purchaseDate: LessThan(criteria.removeOwnersWithPurchaseDateBefore)
+      }
     });
     const progress = new JobProgress(carsAndCount[1], ownersAndCount[1]);
     if (progress.empty()) {
       return job.progress(jobMaxProgress).then(() => noopJobResult);
     }
-    const applyCarPriceDiscount = this.jobApplyCarPriceDiscount(job,progress);
+    const applyCarPriceDiscount = this.jobApplyCarPriceDiscount(job, progress);
     const removeOwner = this.jobRemoveOwner(job, progress);
     return Promise.all(carsAndCount[0].map(applyCarPriceDiscount))
-    .then(
-      () => Promise.all(ownersAndCount[0].map(removeOwner))
-    ).then(
-      () => progress.result()
-    );
+      .then(() => Promise.all(ownersAndCount[0].map(removeOwner)))
+      .then(() => progress.result());
   }
 
   @OnQueueActive()
@@ -258,11 +273,6 @@ export class CarsService extends OrmCrudService<Car> {
 
   @OnQueueCompleted()
   protected onJobCompleted(job: Job, result: JobResultDto): void {
-    console.log(
-      'Car job [',
-      job.id,
-      '] completed: ',
-      result
-    );
+    console.log('Car job [', job.id, '] completed: ', result);
   }
 }

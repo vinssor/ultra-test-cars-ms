@@ -1,12 +1,11 @@
 import { Connection, DatabaseType, QueryFailedError } from 'typeorm';
 import {
+  ContinueChaining,
   ErrorFilter,
-  ErrorTransformer,
-  TypedErrorFilter,
   ErrorFilterChainingStrategy,
-  ContinueChaining
+  ErrorTransformer,
+  TypedErrorFilter
 } from '../error/error.transformer';
-import { Injectable } from '@nestjs/common';
 
 /**
  * The ORM duplicate entity error

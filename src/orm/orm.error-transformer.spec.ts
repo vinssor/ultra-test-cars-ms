@@ -1,9 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { Connection, QueryFailedError } from 'typeorm';
-import { OrmErrorTransformer } from './orm.error-transformer';
 import {
   DuplicateEntityError,
-  EntityRelationError
+  EntityRelationError,
+  OrmErrorTransformer
 } from './orm.error-transformer';
 
 describe('OrmErrorTransformer', () => {
