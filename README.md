@@ -3,7 +3,7 @@
 ## Description
 
 A little backend micro-service which aims to serve the cars data.
-The API documentation is available [here](API.md) or [self-hosted](')http://localhost:3000/api).
+The API documentation is available [here](API.md) or [self-hosted](http://localhost:3000/api).
 
 ## Installation
 
