@@ -7,16 +7,16 @@ import {
 } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import { Crud } from '@nestjsx/crud';
-import { DuplicateEntityError } from '../orm/orm.error-transformer';
+import { ManufacturerNameAlreadyExistsError } from './manufacturer-name-already-exists.error';
 import { Manufacturer } from './manufacturer.entity';
 import { ManufacturersService } from './manufacturers.service';
 
-@Catch(DuplicateEntityError)
-class DuplicateEntityExceptionFilter extends BaseExceptionFilter {
-  catch(exception: DuplicateEntityError, host: ArgumentsHost) {
+@Catch(ManufacturerNameAlreadyExistsError)
+class ManufacturerNameAlreadyExistsExceptionFilter extends BaseExceptionFilter {
+  catch(exception: ManufacturerNameAlreadyExistsError, host: ArgumentsHost) {
     super.catch(
       new ConflictException(
-        `Duplicate manufacturer with name [${exception.parameters[1]}]`
+        `Duplicate manufacturer with name [${exception.manufacturerName}]`
       ),
       host
     );
@@ -35,7 +35,7 @@ class DuplicateEntityExceptionFilter extends BaseExceptionFilter {
     }
   }
 })
-@UseFilters(DuplicateEntityExceptionFilter)
+@UseFilters(ManufacturerNameAlreadyExistsExceptionFilter)
 @Controller('manufacturers')
 export class ManufacturersController {
   constructor(public service: ManufacturersService) {}

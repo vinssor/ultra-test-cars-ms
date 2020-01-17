@@ -30,6 +30,7 @@ import { Car } from './car.entity';
 import { CarsService } from './cars.service';
 import { JobDto } from './job.dto';
 import { NoManufacturerFoundError } from './no-manufacturer-found.error';
+import { JobsService } from './jobs.service';
 
 @Catch(DuplicateEntityError)
 class DuplicateEntityExceptionFilter extends BaseExceptionFilter {
@@ -75,7 +76,7 @@ class NoManufacturerExceptionFilter extends BaseExceptionFilter {
         eager: false
       },
       owners: {
-        eager: true
+        eager: false
       }
     }
   }
@@ -83,7 +84,10 @@ class NoManufacturerExceptionFilter extends BaseExceptionFilter {
 @UseFilters(NoManufacturerExceptionFilter, DuplicateEntityExceptionFilter)
 @Controller('cars')
 export class CarsController {
-  constructor(public service: CarsService) {}
+  constructor(
+    public service: CarsService,
+    private readonly jobsService: JobsService
+  ) {}
 
   @ApiOperation({ summary: 'Retrieve one Manufacturer associated with a Car' })
   @ApiOkResponse({ type: Manufacturer })
@@ -106,7 +110,7 @@ export class CarsController {
   })
   @Post('jobs')
   async createCarJob(): Promise<JobDto> {
-    return this.service.createJob();
+    return this.jobsService.createJob();
   }
 
   @ApiOperation({ summary: 'Retrieve many Jobs' })
@@ -116,7 +120,7 @@ export class CarsController {
   })
   @Get('jobs')
   async listCarJob(): Promise<Array<JobDto>> {
-    return this.service.listJobs();
+    return this.jobsService.listJobs();
   }
 
   @ApiOperation({ summary: 'Retrieve one Job' })
@@ -126,7 +130,7 @@ export class CarsController {
   @ApiNotFoundResponse()
   @Get('jobs/:id')
   async getCarJob(@Param('id') id: string): Promise<JobDto> {
-    return this.service
+    return this.jobsService
       .getOneJob(id)
       .then(job => (job ? job : Promise.reject(new NotFoundException())));
   }

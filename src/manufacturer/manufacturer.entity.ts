@@ -9,17 +9,18 @@ import {
   IsString,
   MaxLength
 } from 'class-validator';
-import { Column, Entity, Generated, PrimaryColumn } from 'typeorm';
+import { Column, Entity, Generated, PrimaryColumn, Unique } from 'typeorm';
 
 const { CREATE, UPDATE } = CrudValidationGroups;
 
+@Unique('uc_manufacturer_name', ['name'])
 @Entity()
 export class Manufacturer {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
   @MaxLength(36)
-  @PrimaryColumn()
+  @PrimaryColumn({ update: false })
   @Generated('uuid')
   id: string;
 
@@ -27,7 +28,7 @@ export class Manufacturer {
   @IsNotEmpty({ groups: [CREATE] })
   @IsOptional({ groups: [UPDATE] })
   @IsString({ always: true })
-  @Column({ nullable: false, unique: true })
+  @Column({ nullable: false })
   name: string;
 
   @ApiPropertyOptional()

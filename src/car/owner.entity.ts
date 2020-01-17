@@ -1,10 +1,9 @@
 import {
-  ApiHideProperty,
   ApiProperty,
-  ApiPropertyOptional
+  ApiPropertyOptional,
+  ApiHideProperty
 } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import { Exclude } from 'class-transformer';
 import {
   IsDateString,
   IsDefined,
@@ -16,22 +15,26 @@ import {
   Column,
   Entity,
   Generated,
-  JoinColumn,
   ManyToOne,
   PrimaryColumn,
-  RelationId
+  Unique,
+  JoinColumn,
+  RelationId,
+  PrimaryGeneratedColumn
 } from 'typeorm';
 import { Car } from './car.entity';
+import { Exclude } from 'class-transformer';
 
 const { CREATE, UPDATE } = CrudValidationGroups;
 
+@Unique('uc_car_ownername', ['carId', 'name'])
 @Entity()
 export class Owner {
   @ApiPropertyOptional()
   @IsOptional({ always: true })
   @IsString({ always: true })
   @MaxLength(36)
-  @PrimaryColumn()
+  @PrimaryColumn({ update: false })
   @Generated('uuid')
   id: string;
 
@@ -50,18 +53,21 @@ export class Owner {
   purchaseDate: Date;
 
   @ApiHideProperty()
-  @Exclude()
   @RelationId((owner: Owner) => owner.car)
-  @PrimaryColumn({ nullable: false, width: 36 })
+  @PrimaryColumn({ nullable: false, width: 36, update: false })
   carId?: string;
 
+  @ApiHideProperty()
+  @Exclude()
   @ManyToOne(
     type => Car,
     car => car.owners,
     {
-      nullable: false
+      nullable: false,
+      primary: true,
+      cascade: false,
+      onDelete: 'CASCADE'
     }
   )
-  @JoinColumn()
   car?: Car;
 }

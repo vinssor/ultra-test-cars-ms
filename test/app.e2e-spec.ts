@@ -6,8 +6,8 @@ import * as request from 'supertest';
 import { Connection, Repository } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { Car } from '../src/car/car.entity';
-import { CarsService } from '../src/car/cars.service';
 import { JobCriteriaDto, JobResultDto } from '../src/car/job.dto';
+import { JobsService } from '../src/car/jobs.service';
 import { Owner } from '../src/car/owner.entity';
 import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
 
@@ -22,7 +22,7 @@ const cloneArray = <T>(o: T[]): Partial<T>[] => {
 };
 
 const nowAddMonth = (count: number): Date => {
-  return new Date(CarsService.addMonth(Date.now(), count));
+  return new Date(JobsService.addMonth(Date.now(), count));
 };
 
 @Processor('car')
@@ -120,7 +120,7 @@ describe('Cars (e2e)', () => {
     });
     it('get one', async () => {
       const manufacturer: Manufacturer = { id: '1', name: 'Test1' };
-      await manufacturerRepository.insert(manufacturer);
+      await manufacturerRepository.save(manufacturer);
       return request(app.getHttpServer())
         .get('/manufacturers/1')
         .expect(200)
@@ -165,7 +165,7 @@ describe('Cars (e2e)', () => {
         ]);
     });
     it('create one with conflict', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .post('/manufacturers')
         .send({ name: 'Test1' })
@@ -193,14 +193,14 @@ describe('Cars (e2e)', () => {
         .expect({ id: '1', name: 'Test1', phone: null, siret: null });
     });
     it('create one with conflict', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .put('/manufacturers/2')
         .send({ name: 'Test1' })
         .expect(409);
     });
     it('replace one', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .put('/manufacturers/1')
         .send({ name: 'Test2' })
@@ -228,15 +228,20 @@ describe('Cars (e2e)', () => {
         .expect([]);
     });
     it('get one', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       const car: Car = {
         id: '1',
         manufacturerId: '1',
         price: 100,
         firstRegistrationDate: new Date(0),
-        owners: []
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date() },
+          { id: '2', name: 'Test2', purchaseDate: new Date() }
+        ]
       };
-      await carRepository.insert(clone(car));
+      await carRepository.save(clone(car));
+      // No owner expected in response
+      delete car.owners;
       return request(app.getHttpServer())
         .get('/cars/1')
         .expect(200)
@@ -250,13 +255,12 @@ describe('Cars (e2e)', () => {
     });
     it('get manufacturer', async () => {
       const manufacturer: Manufacturer = { id: '1', name: 'Test1' };
-      await manufacturerRepository.insert(manufacturer);
-      await carRepository.insert({
+      await manufacturerRepository.save(manufacturer);
+      await carRepository.save({
         id: '1',
         manufacturerId: '1',
         price: 100,
-        firstRegistrationDate: new Date(0),
-        owners: []
+        firstRegistrationDate: new Date(0)
       });
       return request(app.getHttpServer())
         .get('/cars/1/manufacturer')
@@ -273,22 +277,19 @@ describe('Cars (e2e)', () => {
           id: '1',
           manufacturerId: '1',
           price: 100,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         },
         {
           id: '2',
           manufacturerId: '1',
           price: 200,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         },
         {
           id: '3',
           manufacturerId: '2',
           price: 300,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         }
       ];
       await carRepository.save(cloneArray(cars));
@@ -309,27 +310,39 @@ describe('Cars (e2e)', () => {
 
   describe('/cars (POST)', () => {
     it('create one', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       const car = {
         manufacturerId: '1',
         price: 100,
         firstRegistrationDate: new Date(0),
-        owners: []
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date() },
+          { id: '2', name: 'Test2', purchaseDate: new Date() }
+        ]
       };
-      return request(app.getHttpServer())
+      const expectedCar = clone(car);
+      // No owner expected in response
+      delete expectedCar.owners;
+      let carId: string;
+      await request(app.getHttpServer())
         .post('/cars')
         .send(car)
         .expect(201)
         .expect(res => {
+          carId = res.body.id;
           res.body.id = 'id';
           res.body.firstRegistrationDate = new Date(
             res.body.firstRegistrationDate
           );
         })
-        .expect({ ...{ id: 'id' }, ...car });
+        .expect({ ...{ id: 'id' }, ...expectedCar });
+      // Ckeck that owners are not stored
+      const storedCar = await carRepository.findOneOrFail(carId);
+      expect(storedCar).toBeDefined();
+      expect(storedCar.owners?.length > 0).toBeFalsy();
     });
     it('create one with unknown manufacturer', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .post('/cars')
         .send({
@@ -339,53 +352,26 @@ describe('Cars (e2e)', () => {
         })
         .expect(400);
     });
-    it('create one with owners', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
-      const owners = [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }];
-      const car = {
-        manufacturerId: '1',
-        price: 100,
-        firstRegistrationDate: new Date(0),
-        owners: owners
-      };
-      return request(app.getHttpServer())
-        .post('/cars')
-        .send(car)
-        .expect(201)
-        .expect(res => {
-          res.body.id = 'id';
-          res.body.firstRegistrationDate = new Date(
-            res.body.firstRegistrationDate
-          );
-          res.body.owners?.forEach((element: any) => {
-            element.purchaseDate = new Date(element.purchaseDate);
-          });
-        })
-        .expect({ ...{ id: 'id' }, ...car });
-    });
     it('create many', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       const cars = [
         {
           id: '1',
           manufacturerId: '1',
           price: 100,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         },
         {
           id: '2',
           manufacturerId: '1',
           price: 200,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         },
         {
           id: '3',
           manufacturerId: '1',
           price: 300,
-          firstRegistrationDate: new Date(0),
-          owners: []
+          firstRegistrationDate: new Date(0)
         }
       ];
       return request(app.getHttpServer())
@@ -404,7 +390,7 @@ describe('Cars (e2e)', () => {
         .expect(cars);
     });
     it('create many with unknown manufacturer', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .post('/cars/bulk')
         .send([
@@ -412,71 +398,22 @@ describe('Cars (e2e)', () => {
             id: '1',
             manufacturerId: '1',
             price: 100,
-            firstRegistrationDate: new Date(0),
-            owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+            firstRegistrationDate: new Date(0)
           },
           {
             id: '2',
             manufacturerId: '1',
             price: 200,
-            firstRegistrationDate: new Date(0),
-            owners: [{ id: '2', name: 'Test2', purchaseDate: new Date(0) }]
+            firstRegistrationDate: new Date(0)
           },
           {
             id: '3',
             manufacturerId: '2',
             price: 300,
-            firstRegistrationDate: new Date(0),
-            owners: [{ id: '3', name: 'Test3', purchaseDate: new Date(0) }]
+            firstRegistrationDate: new Date(0)
           }
         ])
         .expect(400);
-    });
-    it('create many with owners', async () => {
-      await manufacturerRepository.save([
-        { id: '1', name: 'Test1' },
-        { id: '2', name: 'Test2' }
-      ]);
-      const cars = [
-        {
-          id: '1',
-          manufacturerId: '1',
-          price: 100,
-          firstRegistrationDate: new Date(0),
-          owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
-        },
-        {
-          id: '2',
-          manufacturerId: '1',
-          price: 200,
-          firstRegistrationDate: new Date(0),
-          owners: [{ id: '2', name: 'Test2', purchaseDate: new Date(0) }]
-        },
-        {
-          id: '3',
-          manufacturerId: '2',
-          price: 300,
-          firstRegistrationDate: new Date(0),
-          owners: [{ id: '3', name: 'Test3', purchaseDate: new Date(0) }]
-        }
-      ];
-      return request(app.getHttpServer())
-        .post('/cars/bulk')
-        .send({ bulk: cars })
-        .expect(201)
-        .expect(res => {
-          let i = 0;
-          res?.body?.forEach((element: any) => {
-            element.id = (++i).toString();
-            element.firstRegistrationDate = new Date(
-              element.firstRegistrationDate
-            );
-            element.owners?.forEach((owner: any) => {
-              owner.purchaseDate = new Date(owner.purchaseDate);
-            });
-          });
-        })
-        .expect(cars);
     });
   });
 
@@ -488,22 +425,34 @@ describe('Cars (e2e)', () => {
         manufacturerId: '1',
         price: 100,
         firstRegistrationDate: new Date(0),
-        owners: []
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date() },
+          { id: '2', name: 'Test2', purchaseDate: new Date() }
+        ]
       };
-      return request(app.getHttpServer())
+      const expectedCar = clone(car);
+      // No owner expected in response
+      delete expectedCar.owners;
+      let carId: string;
+      await request(app.getHttpServer())
         .put('/cars/1')
         .send(car)
         .expect(200)
-        .expect(
-          res =>
-            (res.body.firstRegistrationDate = new Date(
-              res.body.firstRegistrationDate
-            ))
-        )
-        .expect({ ...{ id: '1' }, ...car });
+        .expect(res => {
+          carId = res.body.id;
+          res.body.id = 'id';
+          res.body.firstRegistrationDate = new Date(
+            res.body.firstRegistrationDate
+          );
+        })
+        .expect({ ...{ id: 'id' }, ...expectedCar });
+      // Ckeck that owners are not stored
+      const storedCar = await carRepository.findOneOrFail(carId);
+      expect(storedCar).toBeDefined();
+      expect(storedCar.owners?.length > 0).toBeFalsy();
     });
     it('create one with unknown manufacturer', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       return request(app.getHttpServer())
         .put('/cars/1')
         .send({
@@ -513,19 +462,27 @@ describe('Cars (e2e)', () => {
         })
         .expect(400);
     });
-    it('create one with owners', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
-      const owners = [
-        { id: '1', name: 'Test1', purchaseDate: new Date(0) },
-        { id: '2', name: 'Test2', purchaseDate: new Date(0) }
-      ];
-      const car = {
+    it('replace one', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      let car = {
         manufacturerId: '1',
         price: 100,
-        firstRegistrationDate: new Date(0),
-        owners: owners
+        firstRegistrationDate: new Date(0)
       };
-      return request(app.getHttpServer())
+      await carRepository.save({ ...{ id: '1' }, ...car });
+      car.price = 200;
+      // Expected car without owners
+      const expectedCar = clone(car);
+      car = {
+        ...{
+          owners: [
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        ...car
+      };
+      await request(app.getHttpServer())
         .put('/cars/1')
         .send(car)
         .expect(200)
@@ -533,78 +490,212 @@ describe('Cars (e2e)', () => {
           res.body.firstRegistrationDate = new Date(
             res.body.firstRegistrationDate
           );
-          res.body.owners?.forEach((element: any) => {
-            element.purchaseDate = new Date(element.purchaseDate);
-          });
         })
-        .expect({ ...{ id: '1' }, ...car });
-    });
-    it('replace one', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
-      const car = {
-        manufacturerId: '1',
-        price: 100,
-        firstRegistrationDate: new Date(0),
-        owners: []
-      };
-      await carRepository.insert({ ...{ id: '1' }, ...car });
-      car.price = 200;
-      return request(app.getHttpServer())
-        .put('/cars/1')
-        .send(car)
-        .expect(200)
-        .expect(
-          res =>
-            (res.body.firstRegistrationDate = new Date(
-              res.body.firstRegistrationDate
-            ))
-        )
-        .expect({ ...{ id: '1' }, ...car });
+        .expect({ ...{ id: '1' }, ...expectedCar });
+      // Ckeck that owners are not stored
+      const storedCar = await carRepository.findOneOrFail('1');
+      expect(storedCar).toBeDefined();
+      expect(storedCar.owners?.length > 0).toBeFalsy();
     });
     it('replace one with unknown manufacturer', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
       const car = {
         manufacturerId: '1',
         price: 100,
-        firstRegistrationDate: new Date(0),
-        owners: []
+        firstRegistrationDate: new Date(0)
       };
-      await carRepository.insert({ ...{ id: '1' }, ...car });
+      await carRepository.save({ ...{ id: '1' }, ...car });
       car.manufacturerId = '2';
       return request(app.getHttpServer())
         .put('/cars/1')
         .send(car)
         .expect(400);
     });
-    it('replace one with owners', async () => {
-      await manufacturerRepository.insert({ id: '1', name: 'Test1' });
-      const owners = [
-        { id: '1', name: 'Test1', purchaseDate: new Date(0) },
-        { id: '2', name: 'Test2', purchaseDate: new Date(0) }
-      ];
-      const car = {
+  });
+
+  describe('/cars (DELETE)', () => {
+    it('delete one', async () => {
+      const manufacturers: Manufacturer[] = [{ id: '1', name: 'Test1' }];
+      await manufacturerRepository.save(manufacturers);
+      await carRepository.save({
+        id: '1',
         manufacturerId: '1',
         price: 100,
         firstRegistrationDate: new Date(0),
-        owners: owners
-      };
-      await carRepository.insert({ ...{ id: '1' }, ...car });
-      car.price = 200;
-      car.owners[1].name = 'Test2Up';
-      car.owners.push({ id: '3', name: 'Test3', purchaseDate: new Date(0) });
-      return request(app.getHttpServer())
-        .put('/cars/1')
-        .send(car)
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date() },
+          { id: '2', name: 'Test2', purchaseDate: new Date() }
+        ]
+      });
+      await request(app.getHttpServer())
+        .delete('/cars/1')
+        .expect(200);
+      // Ckeck that car is deleted
+      return await expect(carRepository.findOneOrFail('1')).rejects.toThrow();
+    });
+    it('delete not found', async () => {
+      await request(app.getHttpServer())
+        .delete('/cars/1')
+        .expect(404);
+    });
+  });
+
+  describe('/cars/owners (GET)', () => {
+    it('get one', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner1 = { id: '1', name: 'Test1', purchaseDate: new Date(0) };
+      const owner2 = { id: '2', name: 'Test2', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [owner1, owner2]
+      });
+      await request(app.getHttpServer())
+        .get('/cars/1/owners/1')
+        .expect(200)
+        .expect(
+          res => (res.body.purchaseDate = new Date(res.body.purchaseDate))
+        )
+        .expect({ ...owner1, ...{ carId: '1' } });
+      return await request(app.getHttpServer())
+        .get('/cars/1/owners/2')
+        .expect(200)
+        .expect(
+          res => (res.body.purchaseDate = new Date(res.body.purchaseDate))
+        )
+        .expect({ ...owner2, ...{ carId: '1' } });
+    });
+  });
+
+  describe('/cars/owners (POST)', () => {
+    it('create one', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner2 = { name: 'Test2', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+      });
+      return await request(app.getHttpServer())
+        .post('/cars/1/owners')
+        .send(owner2)
+        .expect(201)
+        .expect(res => {
+          res.body.id = 'id';
+          res.body.purchaseDate = new Date(res.body.purchaseDate);
+        })
+        .expect({ ...owner2, ...{ id: 'id', carId: '1' } });
+    });
+    it('create one name conflict', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner2 = { name: 'Test1', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+      });
+      return await request(app.getHttpServer())
+        .post('/cars/1/owners')
+        .send(owner2)
+        .expect(409);
+    });
+  });
+
+  describe('/cars/owners (PUT)', () => {
+    it('create one', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner2 = { name: 'Test2', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+      });
+      return await request(app.getHttpServer())
+        .put('/cars/1/owners/2')
+        .send(owner2)
         .expect(200)
         .expect(res => {
-          res.body.firstRegistrationDate = new Date(
-            res.body.firstRegistrationDate
-          );
-          res.body.owners?.forEach((element: any) => {
-            element.purchaseDate = new Date(element.purchaseDate);
-          });
+          res.body.purchaseDate = new Date(res.body.purchaseDate);
         })
-        .expect({ ...{ id: '1' }, ...car });
+        .expect({ ...owner2, ...{ id: '2', carId: '1' } });
+    });
+    it('create one name conflict', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner2 = { name: 'Test1', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+      });
+      return await request(app.getHttpServer())
+        .put('/cars/1/owners/2')
+        .send(owner2)
+        .expect(409);
+    });
+    it('replace one', async () => {
+      await manufacturerRepository.save({ id: '1', name: 'Test1' });
+      const owner2 = { name: 'Test2', purchaseDate: new Date(0) };
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date(0) },
+          {...{ id: '2'}, ...owner2 }
+        ]
+      });
+      owner2.purchaseDate = new Date(10000);
+      return await request(app.getHttpServer())
+        .put('/cars/1/owners/2')
+        .send(owner2)
+        .expect(200)
+        .expect(res => {
+          res.body.purchaseDate = new Date(res.body.purchaseDate);
+        })
+        .expect({ ...owner2, ...{ id: '2', carId: '1' } });
+    });
+  });
+
+  describe('/cars/owners (DELETE)', () => {
+    it('delete one', async () => {
+      const manufacturers: Manufacturer[] = [{ id: '1', name: 'Test1' }];
+      await manufacturerRepository.save(manufacturers);
+      await carRepository.save({
+        id: '1',
+        manufacturerId: '1',
+        price: 100,
+        firstRegistrationDate: new Date(0),
+        owners: [
+          { id: '1', name: 'Test1', purchaseDate: new Date() },
+          { id: '2', name: 'Test2', purchaseDate: new Date() }
+        ]
+      });
+      await request(app.getHttpServer())
+        .delete('/cars/1/owners/2')
+        .expect(200);
+      // Ckeck that owner is deleted
+      await expect(
+        ownerRepository.findOneOrFail({ id: '1', carId: '2' })
+      ).rejects.toThrow();
+      return await expect(
+        ownerRepository.findOneOrFail({ id: '1', carId: '1' })
+      ).resolves.toBeDefined();
+    });
+    it('delete not found', async () => {
+      await request(app.getHttpServer())
+        .delete('/cars/1/owners/1')
+        .expect(404);
     });
   });
 
@@ -626,7 +717,7 @@ describe('Cars (e2e)', () => {
       expect(resultDto.removedOwners).toEqual(0);
     });
     it('trigger: no matching car', async () => {
-      await manufacturerRepository.insert([
+      await manufacturerRepository.save([
         { id: '1', name: 'Test1' },
         { id: '2', name: 'Test2' }
       ]);
@@ -678,7 +769,7 @@ describe('Cars (e2e)', () => {
       expect(resultDto.removedOwners).toEqual(0);
     });
     it('trigger: matching cars', async () => {
-      await manufacturerRepository.insert([
+      await manufacturerRepository.save([
         { id: '1', name: 'Test1' },
         { id: '2', name: 'Test2' }
       ]);

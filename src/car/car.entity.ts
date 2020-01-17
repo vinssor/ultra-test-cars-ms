@@ -4,7 +4,7 @@ import {
   ApiPropertyOptional
 } from '@nestjs/swagger';
 import { CrudValidationGroups } from '@nestjsx/crud';
-import { Exclude, Type } from 'class-transformer';
+import { Exclude, Type, Transform } from 'class-transformer';
 import {
   IsDateString,
   IsDefined,
@@ -12,7 +12,8 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  MaxLength
+  MaxLength,
+  ValidateNested
 } from 'class-validator';
 import {
   Column,
@@ -35,7 +36,7 @@ export class Car {
   @IsOptional({ always: true })
   @IsString({ always: true })
   @MaxLength(36)
-  @PrimaryColumn()
+  @PrimaryColumn({ update: false })
   @Generated('uuid')
   id: string;
 
@@ -48,11 +49,14 @@ export class Car {
   @Column({ nullable: false, width: 36 })
   manufacturerId: string;
 
+  @ApiHideProperty()
+  @Exclude()
   @ManyToOne(
     type => Manufacturer,
     manufacturer => manufacturer.id,
     {
-      nullable: false
+      nullable: false,
+      cascade: true
     }
   )
   @JoinColumn()
@@ -67,7 +71,7 @@ export class Car {
   price: number;
 
   @ApiHideProperty()
-  @Exclude({ toPlainOnly: true })
+  @Exclude()
   @Column({ default: false })
   priceDiscounted?: boolean;
 
@@ -78,12 +82,13 @@ export class Car {
   @Column()
   firstRegistrationDate: Date;
 
-  @ApiPropertyOptional({ type: Owner })
+  @ApiHideProperty()
+  @Exclude()
   @OneToMany(
     () => Owner,
     owner => owner.car,
     {
-      cascade: true
+      cascade: ['insert', 'remove']
     }
   )
   @Type(() => Owner)
