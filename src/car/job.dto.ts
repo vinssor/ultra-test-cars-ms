@@ -2,22 +2,31 @@ import { ApiProperty } from '@nestjs/swagger';
 import { JobStatus } from 'bull';
 
 /**
- * The job criteria
+ * The job's price discount criteria
+ */
+export class JobPriceDiscountCriteriaDto {
+  @ApiProperty()
+  rate: number;
+  @ApiProperty()
+  carsWithFirstRegistrationDateAfter: Date;
+  @ApiProperty()
+  carsWithFirstRegistrationDateBefore: Date;
+}
+
+/**
+ * The job's criteria
  */
 export class JobCriteriaDto {
   @ApiProperty()
-  priceDiscountRate: number;
-  @ApiProperty()
-  discountCarsWithFirstRegistrationDateAfter: Date;
-  @ApiProperty()
-  discountCarsWithFirstRegistrationDateBefore: Date;
+  priceDiscount: JobPriceDiscountCriteriaDto;
   @ApiProperty()
   removeOwnersWithPurchaseDateBefore: Date;
 }
 
+/**
+ * The job's result
+ */
 export class JobResultDto {
-  @ApiProperty()
-  processedCars: number;
 
   @ApiProperty()
   discountedPrices: number;
@@ -33,9 +42,6 @@ export class JobDto {
   @ApiProperty()
   createdAt: Date;
 
-  /**
-   * The custom data passed when the job was created
-   */
   @ApiProperty()
   criteria: JobCriteriaDto;
 

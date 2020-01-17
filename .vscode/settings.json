@@ -1,0 +1,13 @@
+{
+  "sqltools.connections": [
+    {
+      "database": "cars",
+      "dialect": "MySQL",
+      "name": "Docker",
+      "password": "secret",
+      "port": 13306,
+      "server": "localhost",
+      "username": "ms"
+    }
+  ]
+}

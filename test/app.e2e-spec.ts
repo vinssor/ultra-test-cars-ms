@@ -1,4 +1,4 @@
-import { InjectQueue, Processor } from '@nestjs/bull';
+import { InjectQueue, Processor, BullModule } from '@nestjs/bull';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Job, Queue } from 'bull';
@@ -9,6 +9,7 @@ import { Car } from '../src/car/car.entity';
 import { JobCriteriaDto, JobResultDto } from '../src/car/job.dto';
 import { Owner } from '../src/car/owner.entity';
 import { Manufacturer } from '../src/manufacturer/manufacturer.entity';
+import { CarsService } from '../src/car/cars.service';
 
 const clone = <T>(o: T): Partial<T> => {
   return { ...o, ...{} };
@@ -20,35 +21,53 @@ const cloneArray = <T>(o: T[]): Partial<T>[] => {
   return result;
 };
 
+const nowAddMonth = (count: number): Date => {
+  return new Date(CarsService.addMonth(Date.now(), count));
+}
+
 @Processor('car')
 class TestQueueProcessor {
+  private activeHandlers: ((job: Job<JobCriteriaDto>) => any)[] = [];
+  private completedHandlers: ((
+    job: Job<JobCriteriaDto>,
+    result: JobResultDto
+  ) => any)[] = [];
+  private failedHandlers: ((
+    job: Job<JobCriteriaDto>,
+    error: Error
+  ) => any)[] = [];
+  constructor(@InjectQueue('car') readonly queue: Queue<JobCriteriaDto>) { }
 
-  private activeHandlers : ((job: Job<JobCriteriaDto>) => any)[] = [];
-  private completedHandlers : ((job: Job<JobCriteriaDto>, result: JobResultDto) => any)[] = [];
-  private failedHandlers : ((job: Job<JobCriteriaDto>, error: Error) => any)[] = [];
-  constructor(@InjectQueue('car') readonly queue: Queue<JobCriteriaDto>) {}
-
-  addActiveHandler(handler: (job: Job<JobCriteriaDto>) => any) : () => void {
+  addActiveHandler(handler: (job: Job<JobCriteriaDto>) => any): () => void {
     this.activeHandlers.push(handler);
     return () => {
-      this.activeHandlers = this.activeHandlers.filter(currentHandler => currentHandler !== handler);
-    }
+      this.activeHandlers = this.activeHandlers.filter(
+        currentHandler => currentHandler !== handler
+      );
+    };
   }
 
-  addCompletedHandler(handler: (job: Job<JobCriteriaDto>, result: JobResultDto) => any) : () => void {
+  addCompletedHandler(
+    handler: (job: Job<JobCriteriaDto>, result: JobResultDto) => any
+  ): () => void {
     this.completedHandlers.push(handler);
     return () => {
-      this.completedHandlers = this.completedHandlers.filter(currentHandler => currentHandler !== handler);
-    }
+      this.completedHandlers = this.completedHandlers.filter(
+        currentHandler => currentHandler !== handler
+      );
+    };
   }
 
-  addFailedHandler(handler: (job: Job<JobCriteriaDto>, error: Error) => any) : () => void {
+  addFailedHandler(
+    handler: (job: Job<JobCriteriaDto>, error: Error) => any
+  ): () => void {
     this.failedHandlers.push(handler);
     return () => {
-      this.failedHandlers = this.failedHandlers.filter(currentHandler => currentHandler !== handler);
-    }
+      this.failedHandlers = this.failedHandlers.filter(
+        currentHandler => currentHandler !== handler
+      );
+    };
   }
-
 }
 
 describe('Cars (e2e)', () => {
@@ -61,7 +80,16 @@ describe('Cars (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [
+        AppModule,
+        BullModule.registerQueue({
+          name: 'car',
+          redis: {
+            host: 'localhost',
+            port: 16379
+          }
+        })
+      ],
       providers: [TestQueueProcessor]
     }).compile();
 
@@ -79,6 +107,8 @@ describe('Cars (e2e)', () => {
     await connection.query('delete from owner');
     await connection.query('delete from car');
     await connection.query('delete from manufacturer');
+    // Clean Queue before each test
+    await queueProcessor.queue.clean(0);
   });
 
   describe('/manufacturers (GET)', () => {
@@ -397,7 +427,7 @@ describe('Cars (e2e)', () => {
             manufacturerId: '2',
             price: 300,
             firstRegistrationDate: new Date(0),
-            owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+            owners: [{ id: '3', name: 'Test3', purchaseDate: new Date(0) }]
           }
         ])
         .expect(400);
@@ -427,7 +457,7 @@ describe('Cars (e2e)', () => {
           manufacturerId: '2',
           price: 300,
           firstRegistrationDate: new Date(0),
-          owners: [{ id: '1', name: 'Test1', purchaseDate: new Date(0) }]
+          owners: [{ id: '3', name: 'Test3', purchaseDate: new Date(0) }]
         }
       ];
       return request(app.getHttpServer())
@@ -578,19 +608,151 @@ describe('Cars (e2e)', () => {
     });
   });
 
-
   describe('/cars/jobs (POST)', () => {
-    it('create one', async () => {
-      request(app.getHttpServer())
+    it('trigger: empty car db', async () => {
+      let jobId: string;
+      await request(app.getHttpServer())
         .post('/cars/jobs')
         .send()
-        .expect(201);
-      return queueProcessor.queue.getJobs([]).then(
-        jobs => Promise.all(jobs.map(job => job.finished().then(result => {
-          expect(result).toBeDefined();
-          expect(result).toBeInstanceOf(JobResultDto);
-        })))
-      );
+        .expect(201)
+        .expect(res => jobId = res.body?.id);
+      expect(jobId).toBeDefined();
+      const job = await queueProcessor.queue.getJob(jobId);
+      expect(job).toBeDefined();
+      const result = await job.finished();
+      expect(result).toBeDefined();
+      const resultDto = <JobResultDto>result;
+      expect(resultDto.discountedPrices).toEqual(0);
+      expect(resultDto.removedOwners).toEqual(0);
+    });
+    it('trigger: no matching car', async () => {
+      await manufacturerRepository.insert([{ id: '1', name: 'Test1' }, { id: '2', name: 'Test2' }]);
+      await carRepository.save([
+        {
+          id: '1',
+          manufacturerId: '1',
+          price: 100,
+          firstRegistrationDate: nowAddMonth(-11),
+          owners: [
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '2',
+          manufacturerId: '1',
+          price: 200,
+          firstRegistrationDate: new Date(),
+          owners: [
+            { id: '3', name: 'Test1', purchaseDate: new Date() },
+            { id: '4', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '3',
+          manufacturerId: '2',
+          price: 300,
+          firstRegistrationDate: nowAddMonth(-19),
+          owners: [
+            { id: '5', name: 'Test1', purchaseDate: new Date() },
+            { id: '6', name: 'Test2', purchaseDate: new Date() }
+          ]
+        }
+      ]);
+      let jobId: string;
+      await request(app.getHttpServer())
+        .post('/cars/jobs')
+        .send()
+        .expect(201)
+        .expect(res => jobId = res.body?.id);
+      expect(jobId).toBeDefined();
+      const job = await queueProcessor.queue.getJob(jobId);
+      expect(job).toBeDefined();
+      const result = await job.finished();
+      expect(result).toBeDefined();
+      const resultDto = <JobResultDto>result;
+      expect(resultDto.discountedPrices).toEqual(0);
+      expect(resultDto.removedOwners).toEqual(0);
+    });
+    it('trigger: matching cars', async () => {
+      await manufacturerRepository.insert([{ id: '1', name: 'Test1' }, { id: '2', name: 'Test2' }]);
+      await carRepository.save([
+        {
+          id: '1',
+          manufacturerId: '1',
+          price: 100,
+          firstRegistrationDate: nowAddMonth(-11),
+          owners: [
+            { id: '1', name: 'Test1', purchaseDate: new Date() },
+            { id: '2', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '2',
+          manufacturerId: '2',
+          price: 200,
+          firstRegistrationDate: nowAddMonth(-20),
+          owners: [
+            { id: '3', name: 'Test1', purchaseDate: nowAddMonth(-19) },
+            { id: '4', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '3',
+          manufacturerId: '1',
+          price: 300,
+          firstRegistrationDate: nowAddMonth(-13),
+          owners: [
+            { id: '5', name: 'Test1', purchaseDate: new Date() },
+            { id: '6', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '4',
+          manufacturerId: '2',
+          price: 400,
+          firstRegistrationDate: nowAddMonth(-17),
+          owners: [
+            { id: '7', name: 'Test1', purchaseDate: new Date() },
+            { id: '8', name: 'Test2', purchaseDate: nowAddMonth(-19) }
+          ]
+        },
+        {
+          id: '5',
+          manufacturerId: '1',
+          price: 500,
+          firstRegistrationDate: nowAddMonth(-19),
+          owners: [
+            { id: '9', name: 'Test1', purchaseDate: new Date() },
+            { id: '10', name: 'Test2', purchaseDate: new Date() }
+          ]
+        },
+        {
+          id: '6',
+          manufacturerId: '1',
+          price: 500,
+          firstRegistrationDate: nowAddMonth(-16),
+          priceDiscounted: true,
+          owners: [
+            { id: '11', name: 'Test1', purchaseDate: new Date() },
+            { id: '12', name: 'Test2', purchaseDate: new Date() }
+          ]
+        }
+      ]);
+      let jobId: string;
+      await request(app.getHttpServer())
+        .post('/cars/jobs')
+        .send()
+        .expect(201)
+        .expect(res => jobId = res.body?.id);
+      expect(jobId).toBeDefined();
+      const job = await queueProcessor.queue.getJob(jobId);
+      expect(job).toBeDefined();
+      const result = await job.finished();
+      expect(result).toBeDefined();
+      const resultDto = <JobResultDto>result;
+      expect(resultDto.discountedPrices).toEqual(2);
+      expect(resultDto.removedOwners).toEqual(2);
     });
   });
 

@@ -10,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AssertionError } from 'assert';
 import { Job, Queue } from 'bull';
-import { Between, LessThan, Repository } from 'typeorm';
+import { Between, LessThan, Repository, MoreThan } from 'typeorm';
 import { OrmCrudService } from '../orm/orm.crud-service';
 import { Car } from './car.entity';
 import { CarsErrorTransformer } from './cars.error-transformer';
@@ -18,9 +18,16 @@ import { JobCriteriaDto, JobDto, JobResultDto } from './job.dto';
 import { Owner } from './owner.entity';
 
 const monthMillis = 2592000000;
-const twelveMonthMillis: number = 12 * monthMillis;
-const eighteenMonthMillis: number = 18 * monthMillis;
+const priceDiscountNumberOfMonthUpperBound = 12;
+const priceDiscountNumberOfMonthLowerBound = 18;
+const removeOwnersNumberOfMonthUpperBound = 18;
 const defaultPriceDiscountRate = 0.2;
+const jobMinProgress = 0;
+const jobMaxProgress = 100;
+const noopJobResult: JobResultDto = {
+  discountedPrices: 0,
+  removedOwners: 0
+};
 
 /**
  * The job progress
@@ -29,31 +36,33 @@ class JobProgress {
   private processed: number = 0;
   private discountedPrices: number = 0;
   private removedOwners: number = 0;
-  constructor(private readonly of: number) {}
+  private readonly maxProcessed: number;
+  constructor(private readonly pricesToDiscount: number, private readonly ownersToRemove: number) {
+    this.maxProcessed = pricesToDiscount + ownersToRemove;
+  }
 
   /**
-   * Increments discounted price counter
+   * @returns true if nothing to process else false
    */
-  incrementDiscounted(): JobProgress {
+  empty(): boolean {
+    return this.maxProcessed < 1;
+  }
+
+  /**
+   * Increments discounted prices counter
+   */
+  incrementDiscountedPrices(): JobProgress {
+    this.processed++;
     this.discountedPrices++;
     return this;
   }
 
   /**
-   * Adds given count to removed owner counter
+   * Increments removed owners counter
    */
-  addRemovedOwners(count: number): JobProgress {
-    if (count > 0) {
-      this.discountedPrices += count;
-    }
-    return this;
-  }
-
-  /**
-   * Increments processed car counter
-   */
-  increment(): JobProgress {
+  incrementRemovedOwners(): JobProgress {
     this.processed++;
+    this.removedOwners++;
     return this;
   }
 
@@ -61,28 +70,37 @@ class JobProgress {
    * Returns the progress value [0, 100]
    */
   value(): number {
-    if (this.of === 0) {
-      return 100;
+    if (this.maxProcessed === 0) {
+      return jobMaxProgress;
     }
     if (this.processed === 0) {
-      return 0;
+      return jobMinProgress;
     }
-    return Math.min(100, Math.max((1 - this.processed / this.of) * 100, 0));
+    return Math.min(
+      jobMaxProgress,
+      Math.max((1 - this.processed / this.maxProcessed) * jobMaxProgress, jobMinProgress)
+    );
   }
 
   /**
    * Returns the job result
    */
   result(): JobResultDto {
-    if (this.processed !== this.of) {
+    if (this.discountedPrices !== this.pricesToDiscount) {
       throw new AssertionError({
-        message: 'Progress mismatch',
-        expected: this.of,
-        actual: this.processed
+        message: 'Discounted prices mismatch',
+        expected: this.pricesToDiscount,
+        actual: this.discountedPrices
+      });
+    }
+    if (this.removedOwners !== this.ownersToRemove) {
+      throw new AssertionError({
+        message: 'Removed owners mismatch',
+        expected: this.ownersToRemove,
+        actual: this.removedOwners
       });
     }
     return {
-      processedCars: this.processed,
       discountedPrices: this.discountedPrices,
       removedOwners: this.removedOwners
     };
@@ -96,11 +114,22 @@ class JobProgress {
 @Injectable()
 export class CarsService extends OrmCrudService<Car> {
   constructor(
-    @InjectRepository(Car) repo: Repository<Car>,
+    @InjectRepository(Car) carRepository: Repository<Car>,
+    @InjectRepository(Owner) private readonly ownerRepository: Repository<Owner>,
     errorTransformer: CarsErrorTransformer,
     @InjectQueue('car') private readonly queue: Queue<JobCriteriaDto>
   ) {
-    super(repo, errorTransformer);
+    super(carRepository, errorTransformer);
+  }
+
+  /**
+   * Adds month(s) to a timestamp in millis
+   * @param timestamp the timestamp in millis to add month(s) to
+   * @param count the number of month to add
+   * @returns a timestamp in millis with count month(s) added
+   */
+  static addMonth(timestamp: number, count: number): number {
+    return timestamp + count * monthMillis;
   }
 
   private static async jobToDto(job: Job<JobCriteriaDto>): Promise<JobDto> {
@@ -120,58 +149,43 @@ export class CarsService extends OrmCrudService<Car> {
   private static createJobCriteria(): JobCriteriaDto {
     const currentTimeMillis = Date.now();
     return {
-      priceDiscountRate: defaultPriceDiscountRate,
-      discountCarsWithFirstRegistrationDateAfter: new Date(
-        currentTimeMillis - eighteenMonthMillis
-      ),
-      discountCarsWithFirstRegistrationDateBefore: new Date(
-        currentTimeMillis - twelveMonthMillis
-      ),
+      priceDiscount: {
+        rate: defaultPriceDiscountRate,
+        carsWithFirstRegistrationDateAfter: new Date(
+          CarsService.addMonth(currentTimeMillis, -priceDiscountNumberOfMonthLowerBound)
+        ),
+        carsWithFirstRegistrationDateBefore: new Date(
+          CarsService.addMonth(currentTimeMillis, -priceDiscountNumberOfMonthUpperBound)
+        )
+      },
       removeOwnersWithPurchaseDateBefore: new Date(
-        currentTimeMillis - eighteenMonthMillis
+        CarsService.addMonth(currentTimeMillis, -removeOwnersNumberOfMonthUpperBound)
       )
     };
   }
 
-  private static jobOwnersToKeep(
-    jobCriteria: JobCriteriaDto,
-    jobProgress: JobProgress
-  ): (car: Car) => Owner[] {
-    return (car: Car) => {
-      const initialSize = car.owners.length;
-      const result = car.owners.filter(
-        owner =>
-          owner.purchaseDate >= jobCriteria.removeOwnersWithPurchaseDateBefore
-      );
-      jobProgress.addRemovedOwners(initialSize - result.length);
-      return result;
+  private jobApplyCarPriceDiscount(
+    job: Job<JobCriteriaDto>,
+    progress: JobProgress
+  ): (car: Car) => Promise<void> {
+    const priceDiscountRate = job.data.priceDiscount.rate;
+    return async (car: Car): Promise<void> => {
+      car.price *= 1 - priceDiscountRate;
+      car.priceDiscounted = true;
+      return this.repo
+        .save(car)
+        .then(() => job.progress(progress.incrementDiscountedPrices().value()));
     };
   }
 
-  private static jobIsCarToApplyPriceDiscount(
-    jobCriteria: JobCriteriaDto
-  ): (car: Car) => boolean {
-    return (car: Car) =>
-      !car.priceDiscountApplied &&
-      jobCriteria.discountCarsWithFirstRegistrationDateAfter <
-        car.firstRegistrationDate &&
-      car.firstRegistrationDate >
-        jobCriteria.discountCarsWithFirstRegistrationDateBefore;
-  }
-
-  private static jobApplyCarPriceDiscount(
-    jobCriteria: JobCriteriaDto,
-    jobProgress: JobProgress
-  ): (car: Car) => number {
-    const isCarToApplyPriceDiscount: (
-      car: Car
-    ) => boolean = this.jobIsCarToApplyPriceDiscount(jobCriteria);
-    return (car: Car) => {
-      if (isCarToApplyPriceDiscount(car)) {
-        jobProgress.incrementDiscounted();
-        return car.price * (1 - jobCriteria.priceDiscountRate);
-      }
-      return car.price;
+  private jobRemoveOwner(
+    job: Job<JobCriteriaDto>,
+    progress: JobProgress
+  ): (owner: Owner) => void {
+    return async (owner: Owner): Promise<void> => {
+      return this.ownerRepository
+        .delete(owner)
+        .then(() => job.progress(progress.incrementRemovedOwners().value()));
     };
   }
 
@@ -206,49 +220,30 @@ export class CarsService extends OrmCrudService<Car> {
   @Process()
   protected async processJob(job: Job<JobCriteriaDto>): Promise<JobResultDto> {
     const criteria = job.data;
-    return this.repo
-      .createQueryBuilder('car')
-      .leftJoinAndSelect('car.owners', 'owner')
-      .where({
-        priceDiscountApplied: false,
+    const carsAndCount = await this.repo.findAndCount({
+      where: {
+        priceDiscounted: false,
         firstRegistrationDate: Between(
-          criteria.discountCarsWithFirstRegistrationDateAfter,
-          criteria.discountCarsWithFirstRegistrationDateBefore
+          criteria.priceDiscount.carsWithFirstRegistrationDateAfter,
+          criteria.priceDiscount.carsWithFirstRegistrationDateBefore
         )
-      })
-      .orWhere(
-        'owner.purchaseDate',
-        LessThan(criteria.removeOwnersWithPurchaseDateBefore)
-      )
-      .getManyAndCount()
-      .then(async carsAnCount => {
-        const count = carsAnCount[1];
-        if (count < 1) {
-          return job.progress(100).then(() => ({
-            processedCars: 0,
-            discountedPrices: 0,
-            removedOwners: 0
-          }));
-        }
-        const progress = new JobProgress(count);
-        const applyCarPriceDiscount: (
-          car: Car
-        ) => number = CarsService.jobApplyCarPriceDiscount(criteria, progress);
-        const ownersToKeep: (car: Car) => Owner[] = CarsService.jobOwnersToKeep(
-          criteria,
-          progress
-        );
-        const updateCar: (car: Car) => Promise<void> = async (
-          car: Car
-        ): Promise<void> => {
-          car.price = applyCarPriceDiscount(car);
-          car.owners = ownersToKeep(car);
-          return this.repo
-            .save(car)
-            .then(() => job.progress(progress.increment().value()));
-        };
-        return Promise.all(carsAnCount[0].map(updateCar)).then(progress.result);
-      });
+      }
+    });
+    const ownersAndCount = await this.ownerRepository.findAndCount({
+      where: { purchaseDate: LessThan(criteria.removeOwnersWithPurchaseDateBefore) }
+    });
+    const progress = new JobProgress(carsAndCount[1], ownersAndCount[1]);
+    if (progress.empty()) {
+      return job.progress(jobMaxProgress).then(() => noopJobResult);
+    }
+    const applyCarPriceDiscount = this.jobApplyCarPriceDiscount(job,progress);
+    const removeOwner = this.jobRemoveOwner(job, progress);
+    return Promise.all(carsAndCount[0].map(applyCarPriceDiscount))
+    .then(
+      () => Promise.all(ownersAndCount[0].map(removeOwner))
+    ).then(
+      () => progress.result()
+    );
   }
 
   @OnQueueActive()
@@ -266,9 +261,8 @@ export class CarsService extends OrmCrudService<Car> {
     console.log(
       'Car job [',
       job.id,
-      '] completed for [',
-      result.processedCars,
-      '] cars'
+      '] completed: ',
+      result
     );
   }
 }
